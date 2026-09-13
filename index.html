@@ -143,23 +143,43 @@ function saveGasUrl(url) {
 
 /* ============================== Google-Apps-Script-Client ============================== */
 
+function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+async function fetchJsonWithRetry(gasUrl, options, attempts = 2) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(gasUrl, options);
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error("Google hat statt Daten eine Zwischenseite geliefert (kommt gelegentlich beim ersten Aufruf vor).");
+      }
+      return { res, json };
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await delay(900);
+    }
+  }
+  throw lastErr;
+}
+
 async function gasGet(gasUrl) {
-  const res = await fetch(gasUrl, { method: "GET" });
-  const json = await res.json();
+  const { json } = await fetchJsonWithRetry(gasUrl, { method: "GET" });
   if (json.status !== "ok") throw new Error(json.error || "Unbekannter Serverfehler beim Laden.");
   return json.data;
 }
 
 async function gasPost(gasUrl, body) {
-  const res = await fetch(gasUrl, {
+  const { json } = await fetchJsonWithRetry(gasUrl, {
     method: "POST",
     mode: "cors",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(body),
   });
-  let json;
-  try { json = await res.json(); } catch (e) { throw new Error("Antwort konnte nicht gelesen werden."); }
-  if (!res.ok || json.status !== "ok") throw new Error(json.error || "Server meldete einen Fehler.");
+  if (json.status !== "ok") throw new Error(json.error || "Server meldete einen Fehler.");
   return json;
 }
 
