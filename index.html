@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Finanzindex" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -54,6 +55,8 @@ const POTS_OHNE_STARTBETRAG = ["Transit", "Puffer"];
 // Diese Töpfe werden beim Monatsabschluss NICHT in den Ausgaberest gefegt,
 // da sie Spar-/Rücklagentöpfe sind, kein monatliches Ausgabenbudget.
 const POTS_OHNE_AUSGABEREST = ["Model 3", "Rücklage", "Jahres Rückstellung", "Transit", "Ausgaberest"];
+// Für diese Töpfe wird im Prognose-Tab eine 24-Monats-Vorschau berechnet.
+const PROGNOSE_TOEPFE = ["Model 3", "Rücklage"];
 const ACCOUNT_COLOR = (name) => (REAL_ACCOUNTS.includes(name) ? "#10b981" : (POT_COLORS[name] || "#94a3b8"));
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
@@ -139,6 +142,60 @@ function computeGehaltsverteilung(fixedCosts) {
     .filter((f) => f.typ !== "Einnahme" && f.quelle === "ING" && f.ziel && f.ziel !== "Extern")
     .reduce((s, f) => s + Number(f.betrag || 0), 0);
   return { gehalt, aufING, aufTR, differenz: gehalt - aufING - aufTR };
+}
+
+// Zinssatz-Zellen können als "2,25%" (Text), 2.25 (Zahl, gemeint als Prozent)
+// oder 0.0225 (Zahl, gemeint als Dezimalanteil) vorliegen - alle drei Formen abdecken.
+function parseRate(v) {
+  if (typeof v === "number") return v > 1 ? v / 100 : v;
+  if (!v) return 0;
+  let s = String(v).trim();
+  const hatProzent = s.includes("%");
+  s = s.replace(/[^0-9,.\-]/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s) || 0;
+  if (hatProzent) return n / 100;
+  return n > 1 ? n / 100 : n;
+}
+
+function getRateSchedule(einstellungen, kontoName) {
+  return einstellungen
+    .filter((r) => r.Konto === kontoName)
+    .map((r) => ({ ab: parseGermanDate(r["Gültig Ab"] || r["Gültig Ab "]), satz: parseRate(r["Zinssatz"]) }))
+    .filter((r) => r.ab)
+    .sort((a, b) => (a.ab < b.ab ? -1 : 1));
+}
+
+function rateForDate(schedule, isoDate) {
+  let satz = schedule.length ? schedule[0].satz : 0;
+  for (const r of schedule) { if (r.ab <= isoDate) satz = r.satz; else break; }
+  return satz;
+}
+
+// Tagesgenaue Simulation: Zinsen werden täglich berechnet (Tagessaldo * Jahreszins / 365)
+// und am Monatsende gutgeschrieben. Am 1. jeden Monats (außer heute) kommt der
+// aktuell gültige monatliche Fixkosten-Beitrag hinzu.
+function simulateForecast(startBalance, monthlyContribution, schedule, monthsAhead) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getFullYear(), start.getMonth() + monthsAhead + 1, 0);
+  let balance = startBalance;
+  let pending = 0;
+  const rows = [];
+  let d = new Date(start);
+  while (d <= end) {
+    if (d.getDate() === 1 && d.getTime() !== start.getTime()) balance += monthlyContribution;
+    const satz = rateForDate(schedule, toISO(d));
+    pending += (balance * satz) / 365;
+    const next = new Date(d); next.setDate(next.getDate() + 1);
+    if (next.getMonth() !== d.getMonth()) {
+      balance += pending;
+      rows.push({ monat: `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`, saldo: Math.round(balance * 100) / 100, zinsen: Math.round(pending * 100) / 100 });
+      pending = 0;
+    }
+    d = next;
+  }
+  return rows.slice(0, monthsAhead);
 }
 
 /* ============================== Saldenlogik ============================== */
@@ -278,7 +335,9 @@ function mapRemoteData(data) {
     }))
     .sort((a, b) => (a.datum < b.datum ? 1 : -1));
 
-  return { accounts, categories, fixedCosts, transactions };
+  const einstellungen = data.einstellungen || [];
+
+  return { accounts, categories, fixedCosts, transactions, einstellungen };
 }
 
 /* ============================== Icons (minimal, ohne externe Abhängigkeit) ============================== */
@@ -310,6 +369,7 @@ function Icon({ name, size = 16, className = "" }) {
     calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1"/></>,
     filter: <><path d="M4 4h16l-6 8v6l-4 2v-8z"/></>,
     wallet: <><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2z"/><path d="M17 12h.01"/><path d="M4 7V5a2 2 0 012-2h9"/></>,
+    trend: <><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -366,6 +426,7 @@ function App() {
   const [categories, setCategories] = useState(initial?.categories || []);
   const [transactions, setTransactions] = useState(initial?.transactions || []);
   const [fixedCosts, setFixedCosts] = useState(initial?.fixedCosts || []);
+  const [einstellungen, setEinstellungen] = useState(initial?.einstellungen || []);
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [syncStatus, setSyncStatus] = useState(gasUrl ? "offline" : "none");
@@ -404,6 +465,7 @@ function App() {
       setAccounts(mapped.accounts);
       setCategories(mapped.categories);
       setFixedCosts(mapped.fixedCosts);
+      setEinstellungen(mapped.einstellungen);
       setTransactions(mapped.transactions);
       setSyncStatus("connected");
       if (!silent) showToast("Mit Google Sheet synchronisiert.");
@@ -495,6 +557,7 @@ function App() {
         setAccounts(mapped.accounts);
         setCategories(mapped.categories);
         setFixedCosts(mapped.fixedCosts);
+        setEinstellungen(mapped.einstellungen);
         setTransactions(mapped.transactions);
       } catch (err) {
         setSyncStatus("offline");
@@ -577,6 +640,7 @@ function App() {
     { id: "buchen", label: "Buchen", icon: "plus" },
     { id: "journal", label: "Journal", icon: "list" },
     { id: "fixkosten", label: "Fixkosten", icon: "repeat" },
+    { id: "prognose", label: "Prognose", icon: "trend" },
     { id: "einstellungen", label: "Einstellungen", icon: "settings" },
   ];
 
@@ -624,6 +688,9 @@ function App() {
         {activeTab === "fixkosten" && (
           <Fixkosten fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} categories={categories} accounts={accounts}
             forceRun={forceRun} setForceRun={setForceRun} onRun={runMonthlyBooking} lastRunInfo={lastRunInfo} showToast={showToast} />
+        )}
+        {activeTab === "prognose" && (
+          <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} />
         )}
         {activeTab === "einstellungen" && (
           <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onManualSync={() => syncFromRemote(false)} />
@@ -1031,6 +1098,136 @@ function FixkostenForm({ categories, accounts, initial, onCancel, onSave }) {
         <button type="button" onClick={onCancel} className="flex-1 rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Abbrechen</button>
       </div>
     </form>
+  );
+}
+
+/* ============================== Prognose ============================== */
+
+function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
+  const MONATE_VORAUS = 24;
+  const potAllocations = useMemo(() => getMonthlyPotAllocations(fixedCosts), [fixedCosts]);
+  const trSchedule = useMemo(() => getRateSchedule(einstellungen, "Trade Republic"), [einstellungen]);
+
+  const verfuegbareToepfe = PROGNOSE_TOEPFE.filter((name) => accounts.some((a) => a.name === name));
+
+  const reihen = useMemo(() => {
+    return verfuegbareToepfe.map((name) => ({
+      name,
+      daten: simulateForecast(balances[name] || 0, potAllocations[name] || 0, trSchedule, MONATE_VORAUS),
+    }));
+  }, [verfuegbareToepfe.join(","), balances, potAllocations, trSchedule]);
+
+  const rows = reihen[0] ? reihen[0].daten.map((_, i) => {
+    const row = { monat: reihen[0].daten[i].monat };
+    let zinsGesamt = 0;
+    reihen.forEach((r) => {
+      row[r.name + "_saldo"] = r.daten[i].saldo;
+      row[r.name + "_zins"] = r.daten[i].zinsen;
+      zinsGesamt += r.daten[i].zinsen;
+    });
+    row.zinsGesamt = Math.round(zinsGesamt * 100) / 100;
+    return row;
+  }) : [];
+
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || typeof Chart === "undefined" || rows.length === 0) return;
+    if (chartRef.current) chartRef.current.destroy();
+    const seriesColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"];
+    chartRef.current = new Chart(canvasRef.current, {
+      type: "bar",
+      data: {
+        labels: rows.map((r) => r.monat),
+        datasets: reihen.map((r, i) => ({
+          label: r.name,
+          data: rows.map((row) => row[r.name + "_saldo"]),
+          backgroundColor: seriesColors[i % seriesColors.length],
+          borderRadius: 4,
+        })),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { autoSkip: true, maxRotation: 45, color: "#898781" }, grid: { display: false } },
+          y: { ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+        },
+      },
+    });
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(rows)]);
+
+  if (verfuegbareToepfe.length === 0) {
+    return <p className="text-sm text-zinc-500">Keine passenden Konten (Model 3, Rücklage) gefunden.</p>;
+  }
+  if (trSchedule.length === 0) {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+        Im Blatt "Einstellungen" wurden keine Zinssätze für "Trade Republic" gefunden. Bitte prüfe, ob das Blatt existiert und die Spalten Konto, Gültig Ab, Zinssatz korrekt befüllt sind.
+      </div>
+    );
+  }
+
+  const seriesColors = ["#185fa5", "#993c1d"];
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-base font-semibold text-zinc-200">Prognose: {verfuegbareToepfe.join(" & ")}</h2>
+        <p className="mt-1 text-[12.5px] text-zinc-500">
+          Rollierende {MONATE_VORAUS}-Monats-Vorschau ab heute, basierend auf dem aktuellen Kontostand, den derzeit hinterlegten monatlichen Fixkosten-Beiträgen und dem aktuell gültigen Zinssatz. Ungeplante zukünftige Sondereinnahmen sind naturgemäß nicht enthalten.
+        </p>
+      </div>
+      <div className="relative h-72 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <canvas ref={canvasRef} />
+      </div>
+      <div className="flex gap-4 text-[12px] text-zinc-400">
+        {verfuegbareToepfe.map((name, i) => (
+          <span key={name} className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: ["#2a78d6", "#eb6834"][i % 2] }} />
+            {name}
+          </span>
+        ))}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+        <table className="w-full border-collapse text-[12.5px]">
+          <thead>
+            <tr>
+              <th rowSpan={2} className="border-b border-zinc-800 px-3 py-2.5 text-left font-medium text-zinc-500">Monat</th>
+              {verfuegbareToepfe.map((name, i) => (
+                <th key={name} colSpan={2} className="border-b border-l border-zinc-800 px-3 py-2 text-center font-medium" style={{ color: seriesColors[i % seriesColors.length] }}>{name}</th>
+              ))}
+              <th rowSpan={2} className="border-b border-l border-zinc-800 px-3 py-2.5 text-right font-medium text-zinc-500">Zinsen gesamt</th>
+            </tr>
+            <tr>
+              {verfuegbareToepfe.map((name) => (
+                <React.Fragment key={name}>
+                  <th className="border-b border-l border-zinc-800 px-3 py-2 text-right font-medium text-zinc-600">Saldo</th>
+                  <th className="border-b border-zinc-800 px-3 py-2 text-right font-medium text-zinc-600">Zinsen</th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.monat} className={i % 2 === 1 ? "bg-zinc-900/40" : ""}>
+                <td className="px-3 py-2 font-medium text-zinc-200">{row.monat}</td>
+                {verfuegbareToepfe.map((name) => (
+                  <React.Fragment key={name}>
+                    <td className="border-l border-zinc-800/60 px-3 py-2 text-right text-zinc-200">{eur(row[name + "_saldo"])}</td>
+                    <td className="px-3 py-2 text-right text-zinc-500">{eur(row[name + "_zins"])}</td>
+                  </React.Fragment>
+                ))}
+                <td className="border-l border-zinc-800/60 px-3 py-2 text-right font-medium text-zinc-200">{eur(row.zinsGesamt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
