@@ -45,8 +45,15 @@ const POT_COLORS = {
   "Laden": "#34d399", "E-Liquids": "#f472b6", "Lebensmittel": "#f59e0b",
   "Freizeit": "#a78bfa", "Kosmetik": "#fb923c", "Model 3": "#fb7185",
   "Rücklage": "#facc15", "Jahres Rückstellung": "#38bdf8", "Transit": "#60a5fa",
-  "Abo & ETF": "#c084fc", "Puffer": "#4ade80",
+  "Abo & ETF": "#c084fc", "Puffer": "#4ade80", "Ausgaberest": "#818cf8",
 };
+// Diese Töpfe bekommen keinen einzelnen "monatlichen Startbetrag" zugewiesen
+// (Transit wird aus mehreren Fixkosten-Positionen gespeist, Puffer ist ein
+// reiner Reservetopf) und zeigen daher weder Klammer-Betrag noch Balken.
+const POTS_OHNE_STARTBETRAG = ["Transit", "Puffer"];
+// Diese Töpfe werden beim Monatsabschluss NICHT in den Ausgaberest gefegt,
+// da sie Spar-/Rücklagentöpfe sind, kein monatliches Ausgabenbudget.
+const POTS_OHNE_AUSGABEREST = ["Model 3", "Rücklage", "Jahres Rückstellung", "Transit", "Ausgaberest"];
 const ACCOUNT_COLOR = (name) => (REAL_ACCOUNTS.includes(name) ? "#10b981" : (POT_COLORS[name] || "#94a3b8"));
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
@@ -95,6 +102,44 @@ function sameDate(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()
 function isBankBusinessDay(date){ const day=date.getDay(); if(day===0||day===6) return false; return !germanHolidays(date.getFullYear()).some(h=>sameDate(h,date)); }
 function lastBankBusinessDayOfMonth(year, monthIndex){ const d=new Date(year, monthIndex+1, 0); while(!isBankBusinessDay(d)) d.setDate(d.getDate()-1); return d; }
 function toISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+
+// Liefert alle Fixkosten_Plan-Positionen, die für den angegebenen Monat gültig
+// sind (Gültig-ab/-bis-Prüfung). Wird sowohl vom Monatslauf als auch von der
+// Gehaltsverteilung und den Topf-Startbeträgen verwendet, damit überall
+// exakt dieselbe Definition von "aktiv" gilt.
+function getActiveFixedCosts(fixedCosts, year, monthIdx) {
+  return fixedCosts.filter((f) => {
+    const abOk = !f.gueltigAb || f.gueltigAb <= toISO(new Date(year, monthIdx, 28));
+    const bisOk = !f.gueltigBis || f.gueltigBis >= toISO(new Date(year, monthIdx, 1));
+    return abOk && bisOk;
+  });
+}
+
+// Summiert je Zielkonto (Topf) alle aktiven Fixkosten-Positionen, die dorthin
+// fließen - das ist der "monatliche Startbetrag" dieses Topfes.
+function getMonthlyPotAllocations(fixedCosts) {
+  const now = new Date();
+  const active = getActiveFixedCosts(fixedCosts, now.getFullYear(), now.getMonth());
+  const map = {};
+  active.forEach((f) => {
+    if (!f.ziel || f.ziel === "Extern") return;
+    map[f.ziel] = (map[f.ziel] || 0) + Number(f.betrag || 0);
+  });
+  return map;
+}
+
+function computeGehaltsverteilung(fixedCosts) {
+  const now = new Date();
+  const active = getActiveFixedCosts(fixedCosts, now.getFullYear(), now.getMonth());
+  const gehalt = active.filter((f) => f.typ === "Einnahme").reduce((s, f) => s + Number(f.betrag || 0), 0);
+  const aufING = active
+    .filter((f) => f.typ !== "Einnahme" && f.quelle === "ING" && (!f.ziel || f.ziel === "Extern"))
+    .reduce((s, f) => s + Number(f.betrag || 0), 0);
+  const aufTR = active
+    .filter((f) => f.typ !== "Einnahme" && f.quelle === "ING" && f.ziel && f.ziel !== "Extern")
+    .reduce((s, f) => s + Number(f.betrag || 0), 0);
+  return { gehalt, aufING, aufTR, differenz: gehalt - aufING - aufTR };
+}
 
 /* ============================== Saldenlogik ============================== */
 
@@ -376,6 +421,7 @@ function App() {
   const gebundenesBudget = virtualAccounts.reduce((s, a) => s + (balances[a.name] || 0), 0);
   const trGesamt = trFrei + gebundenesBudget; // 1:1 vergleichbar mit der echten Trade-Republic-App
   const gesamtvermoegen = ingBalance + trGesamt;
+  const potAllocations = useMemo(() => getMonthlyPotAllocations(fixedCosts), [fixedCosts]);
 
   const currentMonth = monthKey(todayISO());
   const monthTx = transactions.filter((t) => monthKey(t.datum) === currentMonth);
@@ -457,11 +503,7 @@ function App() {
       }
     }
 
-    const active = fixedCosts.filter((f) => {
-      const abOk = !f.gueltigAb || f.gueltigAb <= toISO(new Date(year, monthIdx, 28));
-      const bisOk = !f.gueltigBis || f.gueltigBis >= toISO(new Date(year, monthIdx, 1));
-      return abOk && bisOk;
-    });
+    const active = getActiveFixedCosts(fixedCosts, year, monthIdx);
 
     const toBook = [];
     let skipped = 0;
@@ -570,7 +612,7 @@ function App() {
         {activeTab === "dashboard" && (
           <Dashboard accounts={accounts} balances={balances} realAccounts={realAccounts} virtualAccounts={virtualAccounts}
             ingBalance={ingBalance} trFrei={trFrei} trGesamt={trGesamt} gebundenesBudget={gebundenesBudget} gesamtvermoegen={gesamtvermoegen}
-            monatEinnahmen={monatEinnahmen} monatAusgaben={monatAusgaben} transactions={transactions} onGoBuchen={() => setActiveTab("buchen")} />
+            monatEinnahmen={monatEinnahmen} monatAusgaben={monatAusgaben} transactions={transactions} potAllocations={potAllocations} onGoBuchen={() => setActiveTab("buchen")} />
         )}
         {activeTab === "buchen" && (
           <BuchungsForm accounts={accounts} categories={categories} onSubmit={(f) => handleAddOrUpdate(f, false)} submitting={syncStatus === "syncing"} />
@@ -616,8 +658,7 @@ function StatCard({ label, value, icon, accent, small }) {
   );
 }
 
-function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalance, trFrei, trGesamt, gebundenesBudget, gesamtvermoegen, monatEinnahmen, monatAusgaben, transactions, onGoBuchen }) {
-  const maxPot = Math.max(1, ...virtualAccounts.map((a) => balances[a.name] || 0));
+function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalance, trFrei, trGesamt, gebundenesBudget, gesamtvermoegen, monatEinnahmen, monatAusgaben, transactions, potAllocations, onGoBuchen }) {
   const recent = transactions.slice(0, 6);
   return (
     <div className="space-y-6">
@@ -658,14 +699,21 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
           <div className="space-y-2.5">
             {virtualAccounts.map((a) => {
               const val = balances[a.name] || 0;
-              const pct = Math.max(4, Math.round((val / maxPot) * 100));
+              const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
+              const startbetrag = potAllocations[a.name] || 0;
+              const pct = hatStartbetrag ? Math.max(0, Math.min(100, Math.round((val / startbetrag) * 100))) : null;
               return (
                 <div key={a.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
                   <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.farbe }} /><span className="text-sm text-zinc-300">{a.name}</span></div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.farbe }} />
+                      <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
+                    </div>
                     <span className="text-sm font-medium tabular-nums text-zinc-100">{eur(val)}</span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: a.farbe }} /></div>
+                  {pct !== null && (
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full" style={{ width: `${Math.max(pct,4)}%`, backgroundColor: a.farbe }} /></div>
+                  )}
                 </div>
               );
             })}
@@ -872,6 +920,7 @@ function ConfirmModal({ title, message, onCancel, onConfirm }) {
 function Fixkosten({ fixedCosts, setFixedCosts, categories, accounts, forceRun, setForceRun, onRun, lastRunInfo, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const verteilung = useMemo(() => computeGehaltsverteilung(fixedCosts), [fixedCosts]);
   const remove = (id) => { setFixedCosts((prev) => prev.filter((f) => f.id !== id)); showToast("Fixkosten-Position lokal entfernt (im Sheet manuell löschen, falls gewünscht)."); };
   const save = (form) => {
     if (form.id) setFixedCosts((prev) => prev.map((f) => (f.id === form.id ? form : f)));
@@ -881,13 +930,36 @@ function Fixkosten({ fixedCosts, setFixedCosts, categories, accounts, forceRun, 
   };
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-200">Gehaltsverteilung (aktueller Monat)</h2>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+            <p className="text-[11px] text-zinc-500">Gehaltseingang gesamt</p>
+            <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{eur(verteilung.gehalt)}</p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+            <p className="text-[11px] text-zinc-500">Auf ING behalten</p>
+            <p className="mt-0.5 text-base font-semibold tabular-nums text-amber-300">{eur(verteilung.aufING)}</p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+            <p className="text-[11px] text-zinc-500">Auf Trade Republic überweisen</p>
+            <p className="mt-0.5 text-base font-semibold tabular-nums text-cyan-300">{eur(verteilung.aufTR)}</p>
+          </div>
+        </div>
+        {Math.abs(verteilung.differenz) > 0.5 && (
+          <p className="mt-3 text-[11.5px] text-amber-300">
+            Hinweis: Gehalt minus ING-Anteil minus Trade-Republic-Anteil ergibt eine Differenz von {eur(verteilung.differenz)}. Prüfe, ob alle Fixkosten-Positionen korrekt als Quelle "ING" hinterlegt sind.
+          </p>
+        )}
+        <p className="mt-2 text-[11.5px] text-zinc-500">Berechnet aus den aktuell gültigen Positionen im Fixkosten_Plan. "Auf ING behalten" sind alle externen Zahlungen (Miete, Versicherungen usw.), "Auf Trade Republic überweisen" ist alles, was in deine Budget-Töpfe fließt.</p>
+      </div>
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2.5">
             <Icon name="calendar" size={18} className="mt-0.5 shrink-0 text-amber-400" />
             <div>
               <p className="text-sm font-medium text-zinc-200">Monatliche Fixkosten & Besoldung jetzt buchen</p>
-              <p className="text-xs text-zinc-500">Besoldung auf letzten Bankwerktag des Vormonats, Fixkosten auf den 1. des Monats. Positionen mit internem Zielkonto werden automatisch als Umbuchung gebucht.</p>
+              <p className="text-xs text-zinc-500">Besoldung auf letzten Bankwerktag des Vormonats, Fixkosten auf den 1. des Monats. Positionen mit internem Zielkonto werden automatisch als Umbuchung gebucht. Läuft ab jetzt zusätzlich automatisch (siehe Google Apps Script) – dieser Button bleibt als manuelle Möglichkeit bestehen.</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
