@@ -94,30 +94,25 @@ function toISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(
 function computeBalances(accounts, transactions) {
   const balances = {};
   accounts.forEach((a) => (balances[a.name] = a.saldo));
-  const virtualNames = new Set(accounts.filter((a) => a.typ === "virtuell").map((a) => a.name));
-  const realNames = new Set(accounts.filter((a) => a.typ === "echt").map((a) => a.name));
-  const TR = "Trade Republic";
   const externalSources = new Set(["extern", "arbeitgeber"]);
 
+  // Reines Doppel-Buchungsprinzip, ohne Sonderfälle: "Trade Republic" ist hier
+  // nur der freie, noch keinem Topf zugeordnete Betrag. Die auf dem Dashboard
+  // angezeigte Trade-Republic-Gesamtsumme wird an anderer Stelle als
+  // (freier Betrag + Summe aller Töpfe) DEFINIERT – dadurch kann sie
+  // rechnerisch nie von der Realität abweichen, ganz gleich wie viele
+  // Buchungen dazwischenliegen.
   transactions.forEach((t) => {
     const betrag = Number(t.betrag) || 0;
-    const isQV = virtualNames.has(t.quelle), isZV = virtualNames.has(t.ziel);
-    const isQRealNonTR = realNames.has(t.quelle) && t.quelle !== TR;
-    const isZRealNonTR = realNames.has(t.ziel) && t.ziel !== TR;
-
     if (t.typ === "Ausgabe") {
       if (balances[t.quelle] !== undefined) balances[t.quelle] -= betrag;
-      if (isQV && balances[TR] !== undefined) balances[TR] -= betrag;
     } else if (t.typ === "Einnahme") {
       const qKey = (t.quelle || "").toLowerCase();
       if (!externalSources.has(qKey) && balances[t.quelle] !== undefined) balances[t.quelle] += betrag;
       if (balances[t.ziel] !== undefined) balances[t.ziel] += betrag;
-      if (isZV && balances[TR] !== undefined) balances[TR] += betrag;
     } else if (t.typ === "Umbuchung") {
       if (balances[t.quelle] !== undefined) balances[t.quelle] -= betrag;
       if (balances[t.ziel] !== undefined) balances[t.ziel] += betrag;
-      if (isQV && isZRealNonTR && balances[TR] !== undefined) balances[TR] -= betrag;
-      if (isZV && isQRealNonTR && balances[TR] !== undefined) balances[TR] += betrag;
     }
   });
   return balances;
@@ -193,6 +188,18 @@ function mapRemoteData(data) {
       typ: REAL_ACCOUNTS.includes(r.Konto) ? "echt" : "virtuell",
       farbe: ACCOUNT_COLOR(r.Konto),
     }));
+
+  // Der Wert für "Trade Republic" im Sheet ist der ECHTE Gesamtbetrag
+  // (zum Abgleich mit der Trade-Republic-App), nicht der freie Rest. Da
+  // Trade Republic komplett aus den Töpfen besteht, ziehen wir die Summe
+  // der Topf-Eröffnungssalden einmalig ab, um den tatsächlich freien,
+  // keinem Topf zugeordneten Betrag zu erhalten. Ab da wird nur noch dieser
+  // freie Betrag fortgeschrieben – die Töpfe laufen ohnehin separat mit.
+  const trAccount = accounts.find((a) => a.name === "Trade Republic");
+  if (trAccount) {
+    const potSum = accounts.filter((a) => a.typ === "virtuell").reduce((s, a) => s + a.saldo, 0);
+    trAccount.saldo = trAccount.saldo - potSum;
+  }
 
   const categories = (data.kategorien || []).map((r, i) => ({
     id: "cat-" + i, name: r.Kategorie, typ: r.Typ,
@@ -357,8 +364,11 @@ function App() {
   const balances = useMemo(() => computeBalances(accounts, transactions), [accounts, transactions]);
   const realAccounts = accounts.filter((a) => a.typ === "echt");
   const virtualAccounts = accounts.filter((a) => a.typ === "virtuell");
-  const liquidesVermoegen = realAccounts.reduce((s, a) => s + (balances[a.name] || 0), 0);
+  const ingBalance = balances["ING"] || 0;
+  const trFrei = balances["Trade Republic"] || 0;
   const gebundenesBudget = virtualAccounts.reduce((s, a) => s + (balances[a.name] || 0), 0);
+  const trGesamt = trFrei + gebundenesBudget; // 1:1 vergleichbar mit der echten Trade-Republic-App
+  const gesamtvermoegen = ingBalance + trGesamt;
 
   const currentMonth = monthKey(todayISO());
   const monthTx = transactions.filter((t) => monthKey(t.datum) === currentMonth);
@@ -552,7 +562,7 @@ function App() {
 
         {activeTab === "dashboard" && (
           <Dashboard accounts={accounts} balances={balances} realAccounts={realAccounts} virtualAccounts={virtualAccounts}
-            liquidesVermoegen={liquidesVermoegen} gebundenesBudget={gebundenesBudget} gesamtsaldo={liquidesVermoegen}
+            ingBalance={ingBalance} trFrei={trFrei} trGesamt={trGesamt} gebundenesBudget={gebundenesBudget} gesamtvermoegen={gesamtvermoegen}
             monatEinnahmen={monatEinnahmen} monatAusgaben={monatAusgaben} transactions={transactions} onGoBuchen={() => setActiveTab("buchen")} />
         )}
         {activeTab === "buchen" && (
@@ -599,16 +609,19 @@ function StatCard({ label, value, icon, accent, small }) {
   );
 }
 
-function Dashboard({ accounts, balances, realAccounts, virtualAccounts, liquidesVermoegen, gebundenesBudget, gesamtsaldo, monatEinnahmen, monatAusgaben, transactions, onGoBuchen }) {
+function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalance, trFrei, trGesamt, gebundenesBudget, gesamtvermoegen, monatEinnahmen, monatAusgaben, transactions, onGoBuchen }) {
   const maxPot = Math.max(1, ...virtualAccounts.map((a) => balances[a.name] || 0));
   const recent = transactions.slice(0, 6);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Gesamtsaldo" value={eur(gesamtsaldo)} icon="landmark" accent="emerald" />
-        <StatCard label="Liquides Vermögen" value={eur(liquidesVermoegen)} icon="wallet" accent="cyan" />
-        <StatCard label="Gebundenes Budget" value={eur(gebundenesBudget)} icon="piggy" accent="amber" />
+        <StatCard label="Gesamtvermögen (ING + Trade Republic)" value={eur(gesamtvermoegen)} icon="landmark" accent="emerald" small />
+        <StatCard label="Trade Republic gesamt" value={eur(trGesamt)} icon="wallet" accent="cyan" />
+        <StatCard label="ING" value={eur(ingBalance)} icon="piggy" accent="amber" />
         <StatCard label="Monat: Einnahmen / Ausgaben" value={`${eur(monatEinnahmen)} / ${eur(monatAusgaben)}`} icon="repeat" accent="violet" small />
+      </div>
+      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-2.5 text-[12.5px] text-cyan-200">
+        Der Wert "Trade Republic gesamt" sollte immer exakt mit deiner echten Trade-Republic-App übereinstimmen. Gibt es hier eine Abweichung, fehlt eine Buchung oder eine Buchung ist falsch erfasst – nicht die Berechnung selbst.
       </div>
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-3">
@@ -617,18 +630,26 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, liquides
             <button onClick={onGoBuchen} className="text-xs text-emerald-400 hover:text-emerald-300">+ Neue Buchung</button>
           </div>
           <div className="space-y-2.5">
-            {realAccounts.map((a) => (
-              <div key={a.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: a.farbe }} />
-                  <div><p className="text-sm text-zinc-200">{a.name}</p><p className="text-[11px] text-zinc-500">Realkonto</p></div>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
+                  <div><p className="text-sm text-zinc-200">Trade Republic</p><p className="text-[11px] text-zinc-500">Realkonto · besteht komplett aus den Töpfen unten</p></div>
                 </div>
-                <p className="text-sm font-medium tabular-nums text-zinc-100">{eur(balances[a.name])}</p>
+                <p className="text-sm font-medium tabular-nums text-zinc-100">{eur(trGesamt)}</p>
               </div>
-            ))}
-            {realAccounts.length === 0 && <p className="text-sm text-zinc-500">Noch keine Konten geladen.</p>}
+              <p className="mt-1.5 pl-5 text-[11px] text-zinc-500">davon frei, keinem Topf zugeordnet: {eur(trFrei)}</p>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
+                <div><p className="text-sm text-zinc-200">ING</p><p className="text-[11px] text-zinc-500">Realkonto</p></div>
+              </div>
+              <p className="text-sm font-medium tabular-nums text-zinc-100">{eur(ingBalance)}</p>
+            </div>
           </div>
-          <div className="mt-4 space-y-2.5">
+          <p className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-wide text-zinc-600">Töpfe innerhalb von Trade Republic</p>
+          <div className="space-y-2.5">
             {virtualAccounts.map((a) => {
               const val = balances[a.name] || 0;
               const pct = Math.max(4, Math.round((val / maxPot) * 100));
