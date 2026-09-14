@@ -1286,36 +1286,35 @@ function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
     return row;
   }) : [];
 
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
+  const canvasRefs = useRef({});
+  const chartRefs = useRef({});
+  const seriesColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"];
 
   useEffect(() => {
-    if (!canvasRef.current || typeof Chart === "undefined" || rows.length === 0) return;
-    if (chartRef.current) chartRef.current.destroy();
-    const seriesColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"];
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "bar",
-      data: {
-        labels: rows.map((r) => r.monat),
-        datasets: reihen.map((r, i) => ({
-          label: r.name,
-          data: rows.map((row) => row[r.name + "_saldo"]),
-          backgroundColor: seriesColors[i % seriesColors.length],
-          borderRadius: 4,
-        })),
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { autoSkip: true, maxRotation: 45, color: "#898781" }, grid: { display: false } },
-          y: { ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+    if (typeof Chart === "undefined" || rows.length === 0) return;
+    verfuegbareToepfe.forEach((name, i) => {
+      const canvas = canvasRefs.current[name];
+      if (!canvas) return;
+      if (chartRefs.current[name]) chartRefs.current[name].destroy();
+      chartRefs.current[name] = new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels: rows.map((r) => r.monat),
+          datasets: [{ data: rows.map((row) => row[name + "_saldo"]), backgroundColor: seriesColors[i % seriesColors.length], borderRadius: 4 }],
         },
-      },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { autoSkip: true, maxRotation: 45, color: "#898781" }, grid: { display: false } },
+            y: { ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+          },
+        },
+      });
     });
-    return () => { if (chartRef.current) chartRef.current.destroy(); };
-  }, [JSON.stringify(rows)]);
+    return () => { Object.values(chartRefs.current).forEach((c) => c && c.destroy()); };
+  }, [JSON.stringify(rows), verfuegbareToepfe.join(",")]);
 
   if (verfuegbareToepfe.length === 0) {
     return <p className="text-sm text-zinc-500">Keine passenden Konten (Model 3, Rücklage) gefunden.</p>;
@@ -1328,8 +1327,6 @@ function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
     );
   }
 
-  const seriesColors = ["#185fa5", "#993c1d"];
-
   return (
     <div className="space-y-5">
       <div>
@@ -1338,17 +1335,14 @@ function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
           Rollierende {MONATE_VORAUS}-Monats-Vorschau ab heute, basierend auf dem aktuellen Kontostand, den derzeit hinterlegten monatlichen Fixkosten-Beiträgen und dem aktuell gültigen Zinssatz. Ungeplante zukünftige Sondereinnahmen sind naturgemäß nicht enthalten.
         </p>
       </div>
-      <div className="relative h-72 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-        <canvas ref={canvasRef} />
-      </div>
-      <div className="flex gap-4 text-[12px] text-zinc-400">
-        {verfuegbareToepfe.map((name, i) => (
-          <span key={name} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: ["#2a78d6", "#eb6834"][i % 2] }} />
-            {name}
-          </span>
-        ))}
-      </div>
+      {verfuegbareToepfe.map((name, i) => (
+        <div key={name}>
+          <p className="mb-2 text-sm font-medium text-zinc-300">{name}</p>
+          <div className="relative h-56 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <canvas ref={(el) => (canvasRefs.current[name] = el)} />
+          </div>
+        </div>
+      ))}
       <div className="overflow-x-auto rounded-2xl border border-zinc-800">
         <table className="w-full border-collapse text-[12.5px]">
           <thead>
