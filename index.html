@@ -91,22 +91,37 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // Trade Republic und ING sind echte Bankkonten, alle anderen Namen im
 // Konten-Blatt sind virtuelle Budget-Töpfe, die real auf Trade Republic liegen.
 const REAL_ACCOUNTS = ["Trade Republic", "ING"];
-const POT_COLORS = {
-  "Laden": "#34d399", "E-Liquids": "#f472b6", "Lebensmittel": "#f59e0b",
-  "Freizeit": "#a78bfa", "Kosmetik": "#fb923c", "Model 3": "#fb7185",
-  "Rücklage": "#facc15", "Jahres Rückstellung": "#38bdf8", "Transit": "#60a5fa",
-  "Abo & ETF": "#c084fc", "Puffer": "#4ade80", "Ausgaberest": "#818cf8",
+// Icon + Hintergrundfarbe für jedes Konto/jeden Topf. Bei ING, Trade Republic
+// und Model 3 sind das bewusst eigene, generische Symbole (keine
+// Original-Logos, siehe Markenrecht) in an die Marke angelehnten, aber
+// gedämpften Farben. Alle anderen Farben sind bewusst dunkel/gedämpft
+// gewählt, damit das weiße Icon darauf gut lesbar bleibt.
+const ACCOUNT_BADGES = {
+  "Trade Republic": { icon: "trend", bg: "#1f6f5c" },
+  "ING": { icon: "landmark", bg: "#c96a2e" },
+  "Model 3": { icon: "car", bg: "#8a3d3d" },
+  "Laden": { icon: "bolt", bg: "#0e7490" },
+  "E-Liquids": { icon: "vape", bg: "#6b5b73" },
+  "Lebensmittel": { icon: "cart", bg: "#b45309" },
+  "Freizeit": { icon: "coaster", bg: "#6d28d9" },
+  "Kosmetik": { icon: "lipstick", bg: "#be185d" },
+  "Rücklage": { icon: "piggy", bg: "#a16207" },
+  "Jahres Rückstellung": { icon: "wrench", bg: "#0369a1" },
+  "Transit": { icon: "road", bg: "#1d4ed8" },
+  "Abo & ETF": { icon: "repeat", bg: "#7e22ce" },
+  "Puffer": { icon: "lifering", bg: "#15803d" },
+  "Ausgaberest": { icon: "wallet", bg: "#4338ca" },
 };
 // Diese Töpfe bekommen keinen einzelnen "monatlichen Startbetrag" zugewiesen
 // (Transit wird aus mehreren Fixkosten-Positionen gespeist, Puffer ist ein
-// reiner Reservetopf) und zeigen daher weder Klammer-Betrag noch Balken.
+// reiner Reservetopf) und zeigen daher keinen Klammer-Betrag.
 const POTS_OHNE_STARTBETRAG = ["Transit", "Puffer"];
 // Diese Töpfe werden beim Monatsabschluss NICHT in den Ausgaberest gefegt,
 // da sie Spar-/Rücklagentöpfe sind, kein monatliches Ausgabenbudget.
 const POTS_OHNE_AUSGABEREST = ["Model 3", "Rücklage", "Jahres Rückstellung", "Transit", "Ausgaberest"];
 // Für diese Töpfe wird im Prognose-Tab eine 24-Monats-Vorschau berechnet.
 const PROGNOSE_TOEPFE = ["Model 3", "Rücklage"];
-const ACCOUNT_COLOR = (name) => (REAL_ACCOUNTS.includes(name) ? "#10b981" : (POT_COLORS[name] || "#94a3b8"));
+const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg : "#94a3b8");
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 
@@ -419,30 +434,29 @@ function Icon({ name, size = 16, className = "" }) {
     filter: <><path d="M4 4h16l-6 8v6l-4 2v-8z"/></>,
     wallet: <><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2z"/><path d="M17 12h.01"/><path d="M4 7V5a2 2 0 012-2h9"/></>,
     trend: <><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></>,
-    car: <><rect x="3" y="11" width="18" height="6" rx="2"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/><path d="M5 11l2-4h10l2 4"/></>,
+    car: <><path d="M4 16l1.4-4.5A2 2 0 017.3 10h9.4a2 2 0 011.9 1.5L20 16"/><rect x="2.5" y="16" width="19" height="3" rx="1"/><circle cx="7" cy="19.4" r="1.6" fill="currentColor" stroke="none"/><circle cx="17" cy="19.4" r="1.6" fill="currentColor" stroke="none"/></>,
     sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
     moon: <><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></>,
     chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
     more: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,
+    bolt: <><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></>,
+    vape: <><rect x="6" y="10" width="11" height="5" rx="2"/><path d="M17 11.5h1.5a1 1 0 010 2H17"/><path d="M20 6c1 1 1 2 0 3M22 7c1 1 1 2 0 3"/></>,
+    cart: <><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 4h2l2.2 11a2 2 0 002 1.7h7a2 2 0 002-1.8L20 8H6.2"/></>,
+    coaster: <><path d="M3 16c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/><rect x="9" y="9" width="4" height="3" rx="1"/></>,
+    lipstick: <><rect x="9" y="13" width="6" height="8" rx="1"/><path d="M9 13l1.5-7h3L15 13z"/><rect x="10" y="3" width="4" height="3" rx="1"/></>,
+    wrench: <><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.8 2.8-2-2z"/></>,
+    road: <><path d="M8 21L11 3h2l3 18"/><path d="M12 7v2M12 12v2M12 17v1"/></>,
+    lifering: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v5M12 15v5M4 12h5M15 12h5"/></>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
 
-// Eigene, dezente Icon-Badges für Konten mit echtem Markenbezug – bewusst
-// keine Original-Logos (Marken- und Urheberrecht), sondern generische
-// Symbole in an die Marke angelehnten, aber gedämpften Farben.
-const BRAND_BADGES = {
-  "ING": { icon: "landmark", bg: "#c96a2e" },
-  "Trade Republic": { icon: "trend", bg: "#1f6f5c" },
-  "Model 3": { icon: "car", bg: "#8a3d3d" },
-};
-
 function AccountIcon({ name, size = 16, fallbackColor }) {
-  const brand = BRAND_BADGES[name];
-  if (brand) {
+  const badge = ACCOUNT_BADGES[name];
+  if (badge) {
     return (
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: brand.bg }}>
-        <Icon name={brand.icon} size={size} className="text-white" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: badge.bg }}>
+        <Icon name={badge.icon} size={size} className="text-white" />
       </div>
     );
   }
@@ -873,8 +887,8 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
       )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Gesamtvermögen (ING + Trade Republic)" value={eur(gesamtvermoegen)} icon="landmark" accent="emerald" small />
-        <StatCard label="Trade Republic gesamt" value={eur(trGesamt)} icon="wallet" accent="cyan" />
-        <StatCard label="ING" value={eur(ingBalance)} icon="piggy" accent="amber" />
+        <StatCard label="Trade Republic gesamt" value={eur(trGesamt)} icon="trend" accent="cyan" />
+        <StatCard label="ING" value={eur(ingBalance)} icon="landmark" accent="amber" />
         <StatCard label="Monat: Einnahmen / Ausgaben" value={`${eur(monatEinnahmen)} / ${eur(monatAusgaben)}`} icon="repeat" accent="violet" small />
       </div>
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-2.5 text-[12.5px] text-cyan-200">
@@ -910,20 +924,13 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
               const val = balances[a.name] || 0;
               const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
               const startbetrag = potAllocations[a.name] || 0;
-              const pct = hatStartbetrag ? Math.max(0, Math.min(100, Math.round((val / startbetrag) * 100))) : null;
-              const istBrand = !!BRAND_BADGES[a.name];
               return (
-                <div key={a.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
-                  <div className={`flex items-center justify-between ${istBrand ? "" : "mb-1.5"}`}>
-                    <div className="flex items-center gap-2.5">
-                      <AccountIcon name={a.name} fallbackColor={a.farbe} size={15} />
-                      <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
-                    </div>
-                    <span className="text-sm font-medium tabular-nums text-zinc-100">{eur(val)}</span>
+                <div key={a.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <AccountIcon name={a.name} fallbackColor={a.farbe} size={15} />
+                    <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
                   </div>
-                  {pct !== null && (
-                    <div className={`h-1.5 w-full overflow-hidden rounded-full bg-zinc-800 ${istBrand ? "mt-2" : ""}`}><div className="h-full rounded-full" style={{ width: `${Math.max(pct,4)}%`, backgroundColor: a.farbe }} /></div>
-                  )}
+                  <span className="text-sm font-medium tabular-nums text-zinc-100">{eur(val)}</span>
                 </div>
               );
             })}
