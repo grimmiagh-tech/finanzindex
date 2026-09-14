@@ -20,9 +20,58 @@
   body { background:#09090b; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   ::-webkit-scrollbar { width:8px; height:8px; }
   ::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:4px; }
+
+  /* ============ Helles Farbschema (Umschalter) ============ */
+  html.light body { background:#f4f4f3; }
+  html.light ::-webkit-scrollbar-thumb { background:#d4d4d8; }
+
+  html.light .bg-zinc-950,
+  html.light .bg-zinc-950\/95 { background-color:#f4f4f3 !important; }
+  html.light .bg-zinc-900,
+  html.light .bg-zinc-900\/40,
+  html.light .bg-zinc-900\/50,
+  html.light .bg-zinc-900\/60 { background-color:#ffffff !important; }
+  html.light .bg-zinc-800,
+  html.light .bg-zinc-800\/60,
+  html.light .bg-zinc-800\/70 { background-color:#ffffff !important; }
+  html.light .hover\:bg-zinc-800:hover,
+  html.light .hover\:bg-zinc-800\/40:hover { background-color:#f4f4f5 !important; }
+
+  html.light .border-zinc-800,
+  html.light .border-zinc-800\/60 { border-color:#e4e4e7 !important; }
+  html.light .border-zinc-700 { border-color:#d4d4d8 !important; }
+  html.light .hover\:border-zinc-600:hover { border-color:#a1a1aa !important; }
+
+  html.light .text-zinc-100,
+  html.light .text-zinc-200 { color:#18181b !important; }
+  html.light .text-zinc-300 { color:#3f3f46 !important; }
+  html.light .text-zinc-400,
+  html.light .text-zinc-500 { color:#71717a !important; }
+  html.light .text-zinc-600 { color:#a1a1aa !important; }
+  html.light .hover\:text-zinc-200:hover { color:#18181b !important; }
+
+  html.light .text-emerald-400 { color:#059669 !important; }
+  html.light .text-emerald-300,
+  html.light .hover\:text-emerald-300:hover { color:#047857 !important; }
+  html.light .text-rose-400,
+  html.light .hover\:text-rose-400:hover { color:#e11d48 !important; }
+  html.light .text-cyan-400 { color:#0891b2 !important; }
+  html.light .text-cyan-300 { color:#0e7490 !important; }
+  html.light .text-cyan-200 { color:#155e75 !important; }
+  html.light .text-amber-400 { color:#b45309 !important; }
+  html.light .text-amber-300 { color:#92400e !important; }
+  html.light .text-amber-200 { color:#78350f !important; }
+  html.light .text-violet-400 { color:#7c3aed !important; }
+
+  html.light input, html.light select, html.light textarea { color-scheme: light; }
 </style>
 </head>
 <body>
+<script>
+  try {
+    if (localStorage.getItem('finanzindex_theme') === 'light') document.documentElement.classList.add('light');
+  } catch (e) {}
+</script>
 <div id="root"></div>
 <script>
   window.addEventListener('error', function (e) {
@@ -370,8 +419,34 @@ function Icon({ name, size = 16, className = "" }) {
     filter: <><path d="M4 4h16l-6 8v6l-4 2v-8z"/></>,
     wallet: <><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2z"/><path d="M17 12h.01"/><path d="M4 7V5a2 2 0 012-2h9"/></>,
     trend: <><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></>,
+    car: <><rect x="3" y="11" width="18" height="6" rx="2"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/><path d="M5 11l2-4h10l2 4"/></>,
+    sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
+    moon: <><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></>,
+    chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+    more: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
+}
+
+// Eigene, dezente Icon-Badges für Konten mit echtem Markenbezug – bewusst
+// keine Original-Logos (Marken- und Urheberrecht), sondern generische
+// Symbole in an die Marke angelehnten, aber gedämpften Farben.
+const BRAND_BADGES = {
+  "ING": { icon: "landmark", bg: "#c96a2e" },
+  "Trade Republic": { icon: "trend", bg: "#1f6f5c" },
+  "Model 3": { icon: "car", bg: "#8a3d3d" },
+};
+
+function AccountIcon({ name, size = 16, fallbackColor }) {
+  const brand = BRAND_BADGES[name];
+  if (brand) {
+    return (
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: brand.bg }}>
+        <Icon name={brand.icon} size={size} className="text-white" />
+      </div>
+    );
+  }
+  return <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: fallbackColor }} />;
 }
 
 function TypBadge({ typ }) {
@@ -430,6 +505,7 @@ function App() {
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [syncStatus, setSyncStatus] = useState(gasUrl ? "offline" : "none");
+  const [isLight, setIsLight] = useState(() => { try { return localStorage.getItem("finanzindex_theme") === "light"; } catch (e) { return false; } });
   const [toast, setToast] = useState(null);
   const [editingTx, setEditingTx] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -629,6 +705,34 @@ function App() {
     showToast("Datenexport heruntergeladen.");
   }, [accounts, categories, transactions, fixedCosts, showToast]);
 
+  const downloadJahresbericht = useCallback(() => {
+    const jahr = new Date().getFullYear();
+    const zeilen = [["Monat", "Einnahmen", "Ausgaben", "Netto"]];
+    for (let m = 0; m < 12; m++) {
+      const mk = `${jahr}-${String(m + 1).padStart(2, "0")}`;
+      const monthTx = transactions.filter((t) => monthKey(t.datum) === mk);
+      const ein = monthTx.filter((t) => t.typ === "Einnahme").reduce((s, t) => s + Number(t.betrag), 0);
+      const aus = monthTx.filter((t) => t.typ === "Ausgabe").reduce((s, t) => s + Number(t.betrag), 0);
+      zeilen.push([mk, ein.toFixed(2).replace(".", ","), aus.toFixed(2).replace(".", ","), (ein - aus).toFixed(2).replace(".", ",")]);
+    }
+    const csv = zeilen.map((r) => r.join(";")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `jahresbericht-${jahr}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Jahresbericht ${jahr} heruntergeladen (öffnet sich direkt in Excel/Google Sheets).`);
+  }, [transactions, showToast]);
+
+  const toggleTheme = () => {
+    setIsLight((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle("light", next);
+      try { localStorage.setItem("finanzindex_theme", next ? "light" : "dark"); } catch (e) {}
+      return next;
+    });
+  };
+
   const applyGasUrl = (url) => {
     setGasUrl(url);
     saveGasUrl(url);
@@ -636,13 +740,17 @@ function App() {
   };
 
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-    { id: "buchen", label: "Buchen", icon: "plus" },
-    { id: "journal", label: "Journal", icon: "list" },
+    { id: "dashboard", label: "Dashboard", icon: "dashboard", primary: true },
+    { id: "buchen", label: "Buchen", icon: "plus", primary: true },
+    { id: "journal", label: "Journal", icon: "list", primary: true },
     { id: "fixkosten", label: "Fixkosten", icon: "repeat" },
     { id: "prognose", label: "Prognose", icon: "trend" },
+    { id: "auswertung", label: "Auswertung", icon: "chart" },
     { id: "einstellungen", label: "Einstellungen", icon: "settings" },
   ];
+  const primaryTabs = tabs.filter((t) => t.primary);
+  const secondaryTabs = tabs.filter((t) => !t.primary);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   return (
     <div className="min-h-[100dvh] w-full bg-zinc-950 text-zinc-100">
@@ -656,6 +764,9 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false)} />
+          <button onClick={toggleTheme} title={isLight ? "Dunkles Design" : "Helles Design"} className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-zinc-600">
+            <Icon name={isLight ? "moon" : "sun"} size={15} />
+          </button>
           <nav className="hidden items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/60 p-1 md:flex">
             {tabs.map((t) => (
               <button key={t.id} onClick={() => setActiveTab(t.id)} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${activeTab === t.id ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400 hover:text-zinc-200"}`}>
@@ -692,18 +803,37 @@ function App() {
         {activeTab === "prognose" && (
           <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} />
         )}
+        {activeTab === "auswertung" && (
+          <Auswertung transactions={transactions} accounts={accounts} ingBalance={ingBalance} trGesamt={trGesamt} />
+        )}
         {activeTab === "einstellungen" && (
-          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onManualSync={() => syncFromRemote(false)} />
+          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false)} />
         )}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-zinc-800 bg-zinc-950/95 px-1 py-1.5 backdrop-blur md:hidden">
-        {tabs.map((t) => (
+        {primaryTabs.map((t) => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10.5px] ${activeTab === t.id ? "text-emerald-400" : "text-zinc-500"}`}>
             <Icon name={t.icon} size={19} />{t.label}
           </button>
         ))}
+        <button onClick={() => setShowMoreMenu(true)} className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10.5px] ${secondaryTabs.some((t) => t.id === activeTab) ? "text-emerald-400" : "text-zinc-500"}`}>
+          <Icon name="more" size={19} />Mehr
+        </button>
       </nav>
+
+      {showMoreMenu && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setShowMoreMenu(false)}>
+          <div className="w-full rounded-t-2xl border-t border-zinc-800 bg-zinc-950 p-3 pb-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-700" />
+            {secondaryTabs.map((t) => (
+              <button key={t.id} onClick={() => { setActiveTab(t.id); setShowMoreMenu(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm ${activeTab === t.id ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-300 hover:bg-zinc-800/50"}`}>
+                <Icon name={t.icon} size={18} />{t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {editingTx && <EditModal tx={editingTx} accounts={accounts} categories={categories} onClose={() => setEditingTx(null)} onSave={(f) => handleAddOrUpdate(f, true)} />}
       {confirmDeleteId && <ConfirmModal title="Buchung löschen?" message="Diese Aktion entfernt die Buchung endgültig im Sheet und berechnet alle Salden neu." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => handleDelete(confirmDeleteId)} />}
@@ -727,8 +857,20 @@ function StatCard({ label, value, icon, accent, small }) {
 
 function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalance, trFrei, trGesamt, gebundenesBudget, gesamtvermoegen, monatEinnahmen, monatAusgaben, transactions, potAllocations, onGoBuchen }) {
   const recent = transactions.slice(0, 6);
+  const heute = new Date();
+  const istMonatsende = heute.getDate() >= new Date(heute.getFullYear(), heute.getMonth() + 1, 0).getDate() - 2;
+  const aufgebrauchteToepfe = virtualAccounts.filter((a) => {
+    if (POTS_OHNE_STARTBETRAG.includes(a.name)) return false;
+    if (!(potAllocations[a.name] > 0)) return false;
+    return (balances[a.name] || 0) <= 0;
+  });
   return (
     <div className="space-y-6">
+      {aufgebrauchteToepfe.length > 0 && !istMonatsende && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-[12.5px] text-rose-200">
+          <span className="font-medium">Budget aufgebraucht:</span> {aufgebrauchteToepfe.map((a) => a.name).join(", ")} {aufgebrauchteToepfe.length === 1 ? "ist" : "sind"} vor Monatsende bereits leer.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Gesamtvermögen (ING + Trade Republic)" value={eur(gesamtvermoegen)} icon="landmark" accent="emerald" small />
         <StatCard label="Trade Republic gesamt" value={eur(trGesamt)} icon="wallet" accent="cyan" />
@@ -748,7 +890,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
+                  <AccountIcon name="Trade Republic" fallbackColor="#10b981" />
                   <div><p className="text-sm text-zinc-200">Trade Republic</p><p className="text-[11px] text-zinc-500">Realkonto · besteht komplett aus den Töpfen unten</p></div>
                 </div>
                 <p className="text-sm font-medium tabular-nums text-zinc-100">{eur(trGesamt)}</p>
@@ -756,7 +898,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
             </div>
             <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
               <div className="flex items-center gap-2.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
+                <AccountIcon name="ING" fallbackColor="#10b981" />
                 <div><p className="text-sm text-zinc-200">ING</p><p className="text-[11px] text-zinc-500">Realkonto</p></div>
               </div>
               <p className="text-sm font-medium tabular-nums text-zinc-100">{eur(ingBalance)}</p>
@@ -769,17 +911,18 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
               const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
               const startbetrag = potAllocations[a.name] || 0;
               const pct = hatStartbetrag ? Math.max(0, Math.min(100, Math.round((val / startbetrag) * 100))) : null;
+              const istBrand = !!BRAND_BADGES[a.name];
               return (
                 <div key={a.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.farbe }} />
+                  <div className={`flex items-center justify-between ${istBrand ? "" : "mb-1.5"}`}>
+                    <div className="flex items-center gap-2.5">
+                      <AccountIcon name={a.name} fallbackColor={a.farbe} size={15} />
                       <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
                     </div>
                     <span className="text-sm font-medium tabular-nums text-zinc-100">{eur(val)}</span>
                   </div>
                   {pct !== null && (
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full" style={{ width: `${Math.max(pct,4)}%`, backgroundColor: a.farbe }} /></div>
+                    <div className={`h-1.5 w-full overflow-hidden rounded-full bg-zinc-800 ${istBrand ? "mt-2" : ""}`}><div className="h-full rounded-full" style={{ width: `${Math.max(pct,4)}%`, backgroundColor: a.farbe }} /></div>
                   )}
                 </div>
               );
@@ -1231,9 +1374,114 @@ function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
   );
 }
 
+/* ============================== Auswertung ============================== */
+
+function computeVermoegensverlauf(accounts, transactions) {
+  const currentMK = monthKey(todayISO());
+  const monthsSet = new Set(transactions.map((t) => monthKey(t.datum)));
+  monthsSet.add(currentMK);
+  const months = Array.from(monthsSet).filter(Boolean).sort();
+  return months.map((mk) => {
+    const [y, m] = mk.split("-").map(Number);
+    const cutoff = toISO(new Date(y, m, 0));
+    const txUpTo = transactions.filter((t) => t.datum <= cutoff);
+    const bal = computeBalances(accounts, txUpTo);
+    const ing = bal["ING"] || 0;
+    const trFrei = bal["Trade Republic"] || 0;
+    const pots = accounts.filter((a) => a.typ === "virtuell").reduce((s, a) => s + (bal[a.name] || 0), 0);
+    return { monat: mk, gesamt: Math.round((ing + trFrei + pots) * 100) / 100 };
+  });
+}
+
+function computeKategorienAuswertung(transactions, monatsFilter) {
+  const monthTx = transactions.filter((t) => t.typ === "Ausgabe" && (!monatsFilter || monthKey(t.datum) === monatsFilter));
+  const map = {};
+  monthTx.forEach((t) => { map[t.kategorie || "Sonstiges"] = (map[t.kategorie || "Sonstiges"] || 0) + Number(t.betrag || 0); });
+  return Object.entries(map).map(([kategorie, betrag]) => ({ kategorie, betrag: Math.round(betrag * 100) / 100 })).sort((a, b) => b.betrag - a.betrag);
+}
+
+function Auswertung({ transactions, accounts }) {
+  const [ansicht, setAnsicht] = useState("monat");
+  const currentMK = monthKey(todayISO());
+
+  const verlauf = useMemo(() => computeVermoegensverlauf(accounts, transactions), [accounts, transactions]);
+  const kategorien = useMemo(() => computeKategorienAuswertung(transactions, ansicht === "monat" ? currentMK : null), [transactions, ansicht]);
+
+  const verlaufRef = useRef(null);
+  const verlaufChart = useRef(null);
+  const katRef = useRef(null);
+  const katChart = useRef(null);
+
+  useEffect(() => {
+    if (!verlaufRef.current || typeof Chart === "undefined" || verlauf.length === 0) return;
+    if (verlaufChart.current) verlaufChart.current.destroy();
+    verlaufChart.current = new Chart(verlaufRef.current, {
+      type: "line",
+      data: {
+        labels: verlauf.map((r) => r.monat),
+        datasets: [{ label: "Gesamtvermögen", data: verlauf.map((r) => r.gesamt), borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.15)", fill: true, tension: 0.3, pointRadius: 3 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#898781", maxRotation: 45 }, grid: { display: false } },
+          y: { ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+        },
+      },
+    });
+    return () => { if (verlaufChart.current) verlaufChart.current.destroy(); };
+  }, [JSON.stringify(verlauf)]);
+
+  useEffect(() => {
+    if (!katRef.current || typeof Chart === "undefined") return;
+    if (katChart.current) katChart.current.destroy();
+    const colors = ["#f59e0b", "#a78bfa", "#fb923c", "#fb7185", "#38bdf8", "#c084fc", "#4ade80", "#f472b6", "#818cf8", "#94a3b8"];
+    katChart.current = new Chart(katRef.current, {
+      type: "bar",
+      data: {
+        labels: kategorien.map((k) => k.kategorie),
+        datasets: [{ data: kategorien.map((k) => k.betrag), backgroundColor: kategorien.map((_, i) => colors[i % colors.length]), borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+          y: { ticks: { color: "#898781" }, grid: { display: false } },
+        },
+      },
+    });
+    return () => { if (katChart.current) katChart.current.destroy(); };
+  }, [JSON.stringify(kategorien)]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-zinc-200">Vermögensverlauf</h2>
+        <p className="mt-1 text-[12.5px] text-zinc-500">Rückblickend berechnet aus deinen tatsächlichen Buchungen – Gesamtvermögen (ING + Trade Republic) am Ende jedes Monats.</p>
+      </div>
+      <div className="relative h-64 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        {verlauf.length > 1 ? <canvas ref={verlaufRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Noch nicht genug Buchungen für einen Verlauf.</p>}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-zinc-200">Wofür geht dein Geld weg?</h2>
+        <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900/50 p-1">
+          <button onClick={() => setAnsicht("monat")} className={`rounded-md px-2.5 py-1 text-xs ${ansicht === "monat" ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400"}`}>Dieser Monat</button>
+          <button onClick={() => setAnsicht("alle")} className={`rounded-md px-2.5 py-1 text-xs ${ansicht === "alle" ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400"}`}>Gesamt</button>
+        </div>
+      </div>
+      <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4" style={{ height: Math.max(220, kategorien.length * 34 + 40) }}>
+        {kategorien.length > 0 ? <canvas ref={katRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Keine Ausgaben in diesem Zeitraum.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ============================== Einstellungen ============================== */
 
-function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onManualSync }) {
+function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync }) {
   const [value, setValue] = useState(gasUrl);
   return (
     <div className="mx-auto max-w-xl space-y-5">
@@ -1256,8 +1504,15 @@ function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onManualSync }
         <p className="text-[11.5px] text-zinc-500">Lädt Konten, Kategorien, Transaktionen und Fixkosten als JSON-Datei herunter.</p>
       </div>
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-        <p className="text-sm font-medium text-zinc-200">Geplant: Finanzprognose mit Zinsertrag</p>
-        <p className="mt-1 text-[11.5px] text-zinc-500">Die Zinssätze aus dem Blatt „Einstellungen" in deinem Google Sheet werden aktuell noch nicht berücksichtigt. Sobald die Prognoselogik feststeht, wird sie hier ergänzt.</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-medium text-zinc-200">Jahresbericht</p>
+          <button onClick={onDownloadJahresbericht} className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"><Icon name="download" size={13} /> CSV herunterladen</button>
+        </div>
+        <p className="text-[11.5px] text-zinc-500">Monatliche Einnahmen, Ausgaben und Netto für das laufende Jahr als CSV-Datei – öffnet sich direkt in Excel, Numbers oder Google Sheets.</p>
+      </div>
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <p className="text-sm font-medium text-zinc-200">Automatisches Backup</p>
+        <p className="mt-1 text-[11.5px] text-zinc-500">Läuft serverseitig über Google Apps Script (Funktion "backupErstellen"), unabhängig davon, ob diese App-Seite gerade geöffnet ist. Legt monatlich automatisch eine datierte Kopie deines gesamten Google Sheets in Google Drive ab. Einrichtung: siehe Kommentar am Anfang der Apps-Script-Datei.</p>
       </div>
     </div>
   );
