@@ -1536,6 +1536,13 @@ function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahr
         <p className="text-sm font-medium text-zinc-200">Automatisches Backup</p>
         <p className="mt-1 text-[11.5px] text-zinc-500">Läuft serverseitig über Google Apps Script (Funktion "backupErstellen"), unabhängig davon, ob diese App-Seite gerade geöffnet ist. Legt monatlich automatisch eine datierte Kopie deines gesamten Google Sheets in Google Drive ab. Einrichtung: siehe Kommentar am Anfang der Apps-Script-Datei.</p>
       </div>
+      <a href="faq.html" className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 hover:border-zinc-700">
+        <div>
+          <p className="text-sm font-medium text-zinc-200">FAQ &amp; technischer Überblick</p>
+          <p className="mt-1 text-[11.5px] text-zinc-500">Buchungslogik, Automatisierung, Backup und Aufbau der App zum Nachlesen.</p>
+        </div>
+        <Icon name="chevron" size={16} className="shrink-0 -rotate-90 text-zinc-500" />
+      </a>
     </div>
   );
 }
