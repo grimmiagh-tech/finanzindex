@@ -341,11 +341,27 @@ function saveGasUrl(url) {
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+// Verhindert, dass eine einzelne Anfrage bei schlechter Verbindung unbegrenzt
+// "hängen" bleibt - nach 20 Sekunden wird abgebrochen und als Fehler
+// behandelt (statt endlos zu warten).
+async function fetchWithTimeout(url, options, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Zeitüberschreitung - keine Antwort innerhalb von 20 Sekunden.");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchJsonWithRetry(gasUrl, options, attempts = 2) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      const res = await fetch(gasUrl, options);
+      const res = await fetchWithTimeout(gasUrl, options);
       const text = await res.text();
       let json;
       try {
@@ -375,7 +391,7 @@ async function gasPost(gasUrl, body) {
   // zweiter Versuch dieselbe Buchung ein zweites Mal anlegen. Schlägt das
   // Lesen der Antwort fehl, wird das als echter Fehler behandelt (inkl.
   // Rollback im UI) statt automatisch erneut zu senden.
-  const res = await fetch(gasUrl, {
+  const res = await fetchWithTimeout(gasUrl, {
     method: "POST",
     mode: "cors",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -586,6 +602,29 @@ function App() {
     if (gasUrl) { syncFromRemote(true).then(() => processQueue()); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sobald der Browser erkennt, dass die Verbindung wieder da ist, sofort
+  // versuchen zu synchronisieren und die Warteschlange abzuarbeiten - ohne
+  // dass dafür ein manueller Klick nötig ist.
+  useEffect(() => {
+    const handler = () => { if (gasUrl) syncFromRemote(true).then(() => processQueue()); };
+    window.addEventListener("online", handler);
+    return () => window.removeEventListener("online", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gasUrl]);
+
+  // Zusätzliches Sicherheitsnetz: Solange etwas in der Warteschlange liegt,
+  // alle 45 Sekunden automatisch einen neuen Versuch starten - auch wenn der
+  // Browser das "online"-Ereignis (z. B. bei manchen Mobilfunk-Wechseln)
+  // nicht zuverlässig auslöst.
+  useEffect(() => {
+    if (!gasUrl) return;
+    const interval = setInterval(() => {
+      if (loadQueue().length > 0) processQueue();
+    }, 45000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gasUrl]);
 
   const syncFromRemote = useCallback(async (silent) => {
     if (!gasUrl) { setSyncStatus("none"); return; }
@@ -875,9 +914,9 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           {queueCount > 0 && (
-            <span title={`${queueCount} Buchung(en) warten auf Synchronisierung`} className="flex animate-pulse items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
+            <button onClick={() => processQueue()} title={`${queueCount} Buchung(en) warten - antippen für erneuten Versuch`} className="flex animate-pulse items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
               <Icon name="loader" size={13} />{queueCount}
-            </span>
+            </button>
           )}
           <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false).then(() => processQueue())} />
           <button onClick={toggleTheme} title={isLight ? "Dunkles Design" : "Helles Design"} className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-zinc-600">
