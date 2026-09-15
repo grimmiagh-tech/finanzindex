@@ -700,47 +700,62 @@ function App() {
     }
   }, [gasUrl, showToast, enqueue]);
 
+  const processingQueueRef = useRef(false);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+
   const processQueue = useCallback(async () => {
     if (!gasUrl) return;
+    // Sperre: Läuft schon ein Versuch, wird ein zweiter, gleichzeitiger
+    // Versuch einfach übersprungen. Ohne diese Sperre könnten zwei parallele
+    // Aufrufe (z. B. Timer + Antippen) dieselbe Buchung beide für "noch nicht
+    // vorhanden" halten und sie doppelt anlegen.
+    if (processingQueueRef.current) return;
     let queue = loadQueue();
     if (queue.length === 0) return;
-    let currentTx = [];
+    processingQueueRef.current = true;
+    setIsProcessingQueue(true);
     try {
-      const data = await gasGet(gasUrl);
-      currentTx = mapRemoteData(data).transactions;
-    } catch (e) {
-      return; // noch kein Netz - beim nächsten Mal erneut versuchen
-    }
-    const remaining = [];
-    let erledigt = 0;
-    for (let i = 0; i < queue.length; i++) {
-      const item = queue[i];
+      let currentTx = [];
       try {
-        if (item.action === "create") {
-          const existiertBereits = currentTx.some((t) => t.id === item.payload.id);
-          if (!existiertBereits) await gasPost(gasUrl, { action: "create", ...item.payload });
-        } else if (item.action === "update") {
-          await gasPost(gasUrl, { action: "update", ...item.payload });
-        } else if (item.action === "delete") {
-          try {
-            await gasPost(gasUrl, { action: "delete", id: item.payload.id });
-          } catch (delErr) {
-            if (!/nicht gefunden/i.test(delErr.message)) throw delErr;
-          }
-        }
-        erledigt++;
-      } catch (err) {
-        // Ab hier abbrechen und Rest (in ursprünglicher Reihenfolge) für den
-        // nächsten Versuch aufheben, damit die zeitliche Reihenfolge erhalten bleibt.
-        remaining.push(...queue.slice(i));
-        break;
+        const data = await gasGet(gasUrl);
+        currentTx = mapRemoteData(data).transactions;
+      } catch (e) {
+        return; // noch kein Netz - beim nächsten Mal erneut versuchen
       }
-    }
-    saveQueue(remaining);
-    setQueueCount(remaining.length);
-    if (erledigt > 0) {
-      showToast(`${erledigt} nachgeholte Buchung(en) erfolgreich synchronisiert.`);
-      syncFromRemote(true);
+      const remaining = [];
+      let erledigt = 0;
+      for (let i = 0; i < queue.length; i++) {
+        const item = queue[i];
+        try {
+          if (item.action === "create") {
+            const existiertBereits = currentTx.some((t) => t.id === item.payload.id);
+            if (!existiertBereits) await gasPost(gasUrl, { action: "create", ...item.payload });
+          } else if (item.action === "update") {
+            await gasPost(gasUrl, { action: "update", ...item.payload });
+          } else if (item.action === "delete") {
+            try {
+              await gasPost(gasUrl, { action: "delete", id: item.payload.id });
+            } catch (delErr) {
+              if (!/nicht gefunden/i.test(delErr.message)) throw delErr;
+            }
+          }
+          erledigt++;
+        } catch (err) {
+          // Ab hier abbrechen und Rest (in ursprünglicher Reihenfolge) für den
+          // nächsten Versuch aufheben, damit die zeitliche Reihenfolge erhalten bleibt.
+          remaining.push(...queue.slice(i));
+          break;
+        }
+      }
+      saveQueue(remaining);
+      setQueueCount(remaining.length);
+      if (erledigt > 0) {
+        showToast(`${erledigt} nachgeholte Buchung(en) erfolgreich synchronisiert.`);
+        syncFromRemote(true);
+      }
+    } finally {
+      processingQueueRef.current = false;
+      setIsProcessingQueue(false);
     }
   }, [gasUrl, showToast]);
 
@@ -914,8 +929,14 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           {queueCount > 0 && (
-            <button onClick={() => processQueue()} title={`${queueCount} Buchung(en) warten - antippen für erneuten Versuch`} className="flex animate-pulse items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
-              <Icon name="loader" size={13} />{queueCount}
+            <button
+              onClick={() => processQueue()}
+              disabled={isProcessingQueue}
+              title={isProcessingQueue ? "Versuche gerade, wartende Buchungen zu senden…" : `${queueCount} Buchung(en) warten - antippen für erneuten Versuch`}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${isProcessingQueue ? "border-amber-500/60 bg-amber-500/20 text-amber-200" : "animate-pulse border-amber-500/40 bg-amber-500/10 text-amber-300"}`}
+            >
+              <Icon name="loader" size={13} className={isProcessingQueue ? "animate-spin" : ""} />
+              {isProcessingQueue ? "Versuche…" : queueCount}
             </button>
           )}
           <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false).then(() => processQueue())} />
