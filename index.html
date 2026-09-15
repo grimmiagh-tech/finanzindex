@@ -966,7 +966,7 @@ function App() {
             monatEinnahmen={monatEinnahmen} monatAusgaben={monatAusgaben} transactions={transactions} potAllocations={potAllocations} onGoBuchen={() => setActiveTab("buchen")} />
         )}
         {activeTab === "buchen" && (
-          <BuchungsForm accounts={accounts} categories={categories} onSubmit={(f) => handleAddOrUpdate(f, false)} submitting={syncStatus === "syncing"} />
+          <BuchungsForm accounts={accounts} categories={categories} transactions={transactions} onSubmit={(f) => handleAddOrUpdate(f, false)} submitting={syncStatus === "syncing"} />
         )}
         {activeTab === "journal" && (
           <Journal transactions={transactions} accounts={accounts} categories={categories} filter={journalFilter} setFilter={setJournalFilter}
@@ -1011,7 +1011,7 @@ function App() {
         </div>
       )}
 
-      {editingTx && <EditModal tx={editingTx} accounts={accounts} categories={categories} onClose={() => setEditingTx(null)} onSave={(f) => handleAddOrUpdate(f, true)} />}
+      {editingTx && <EditModal tx={editingTx} accounts={accounts} categories={categories} transactions={transactions} onClose={() => setEditingTx(null)} onSave={(f) => handleAddOrUpdate(f, true)} />}
       {confirmDeleteId && <ConfirmModal title="Buchung löschen?" message="Diese Aktion entfernt die Buchung endgültig im Sheet und berechnet alle Salden neu." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => handleDelete(confirmDeleteId)} />}
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
@@ -1128,11 +1128,34 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
 
 function emptyForm() { return { id: null, datum: todayISO(), titel: "", kategorie: "", typ: "Ausgabe", betrag: "", quelle: "", ziel: "", notiz: "" }; }
 
-function BuchungsForm({ accounts, categories, onSubmit, submitting, initial, onCancel }) {
+function BuchungsForm({ accounts, categories, transactions, onSubmit, submitting, initial, onCancel }) {
   const [form, setForm] = useState(initial || emptyForm());
   const [errors, setErrors] = useState({});
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const accountOptions = accounts.map((a) => a.name);
   const catOptions = categories.filter((c) => c.typ === form.typ || form.typ === "Umbuchung");
+
+  // Für jeden bisher verwendeten Titel (passend zum aktuell gewählten Typ)
+  // die zuletzt genutzte Buchung merken, um Kategorie/Quelle/Ziel beim
+  // Auswählen eines Vorschlags automatisch mit übernehmen zu können.
+  const titelVorschlaege = useMemo(() => {
+    if (!transactions) return [];
+    const map = new Map();
+    transactions.forEach((t) => {
+      if (t.typ !== form.typ || !t.titel) return;
+      if (!map.has(t.titel)) map.set(t.titel, t); // Journal ist neueste zuerst sortiert
+    });
+    return Array.from(map.values());
+  }, [transactions, form.typ]);
+
+  const gefilterteVorschlaege = form.titel.trim()
+    ? titelVorschlaege.filter((t) => t.titel.toLowerCase().includes(form.titel.toLowerCase()) && t.titel.toLowerCase() !== form.titel.toLowerCase()).slice(0, 5)
+    : [];
+
+  const vorschlagWaehlen = (t) => {
+    setForm((f) => ({ ...f, titel: t.titel, kategorie: t.kategorie || f.kategorie, quelle: t.quelle || f.quelle, ziel: t.ziel || f.ziel }));
+    setShowSuggestions(false);
+  };
 
   const validate = () => {
     const e = {};
@@ -1171,7 +1194,33 @@ function BuchungsForm({ accounts, categories, onSubmit, submitting, initial, onC
         </Field>
       </div>
       <Field label="Titel">
-        <input type="text" placeholder="z. B. Wocheneinkauf Rewe" className={inputCls} value={form.titel} onChange={(e) => setForm((f) => ({ ...f, titel: e.target.value }))} />
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="z. B. Wocheneinkauf Rewe"
+            className={inputCls}
+            value={form.titel}
+            onChange={(e) => { setForm((f) => ({ ...f, titel: e.target.value })); setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            autoComplete="off"
+          />
+          {showSuggestions && gefilterteVorschlaege.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg">
+              {gefilterteVorschlaege.map((t) => (
+                <button
+                  key={t.titel}
+                  type="button"
+                  onMouseDown={() => vorschlagWaehlen(t)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+                >
+                  <span className="truncate">{t.titel}</span>
+                  <span className="ml-2 shrink-0 text-[11px] text-zinc-500">{t.kategorie}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {errors.titel && <p className="mt-1 text-xs text-rose-400">{errors.titel}</p>}
       </Field>
       {form.typ !== "Umbuchung" && (
@@ -1275,12 +1324,12 @@ function Journal({ transactions, accounts, categories, filter, setFilter, showFi
   );
 }
 
-function EditModal({ tx, accounts, categories, onClose, onSave }) {
+function EditModal({ tx, accounts, categories, transactions, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center">
       <div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-950 p-5 md:rounded-2xl">
         <div className="mb-4 flex items-center justify-between"><h3 className="text-base font-semibold text-zinc-200">Buchung bearbeiten</h3><button onClick={onClose} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800"><Icon name="x" size={18} /></button></div>
-        <BuchungsForm accounts={accounts} categories={categories} initial={tx} onSubmit={onSave} onCancel={onClose} />
+        <BuchungsForm accounts={accounts} categories={categories} transactions={transactions} initial={tx} onSubmit={onSave} onCancel={onClose} />
       </div>
     </div>
   );
