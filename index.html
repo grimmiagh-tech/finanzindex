@@ -124,6 +124,33 @@ const PROGNOSE_TOEPFE = ["Model 3", "Rücklage"];
 const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg : "#94a3b8");
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
+const QUEUE_KEY = "finanzindex_warteschlange_v1";
+
+function loadQueue() {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function saveQueue(queue) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); } catch (e) { /* Speicher nicht verfügbar */ }
+}
+// Überlagert die vom Server geladenen Transaktionen mit noch nicht
+// synchronisierten Warteschlangen-Einträgen, damit lokal wartende Buchungen
+// beim Synchronisieren nicht kurzzeitig aus der Ansicht verschwinden.
+function mergeWithQueue(serverTx, queue) {
+  let result = serverTx;
+  queue.forEach((item) => {
+    if (item.action === "create") {
+      if (!result.some((t) => t.id === item.payload.id)) result = [item.payload, ...result];
+    } else if (item.action === "update") {
+      result = result.map((t) => (t.id === item.payload.id ? item.payload : t));
+    } else if (item.action === "delete") {
+      result = result.filter((t) => t.id !== item.payload.id);
+    }
+  });
+  return result;
+}
 
 /* ============================== Hilfsfunktionen ============================== */
 
@@ -556,7 +583,7 @@ function App() {
 
   // Initialer Sync beim Start, falls eine GAS-URL hinterlegt ist
   useEffect(() => {
-    if (gasUrl) syncFromRemote(true);
+    if (gasUrl) { syncFromRemote(true).then(() => processQueue()); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -570,7 +597,7 @@ function App() {
       setCategories(mapped.categories);
       setFixedCosts(mapped.fixedCosts);
       setEinstellungen(mapped.einstellungen);
-      setTransactions(mapped.transactions);
+      setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
       setSyncStatus("connected");
       if (!silent) showToast("Mit Google Sheet synchronisiert.");
     } catch (err) {
@@ -595,6 +622,15 @@ function App() {
   const monatAusgaben = monthTx.filter((t) => t.typ === "Ausgabe").reduce((s, t) => s + Number(t.betrag), 0);
 
   /* ---------- Buchung anlegen / bearbeiten / löschen: optimistic update + Rollback + Persistenz-Verifikation ---------- */
+  const [queueCount, setQueueCount] = useState(() => loadQueue().length);
+
+  const enqueue = useCallback((action, payload) => {
+    const queue = loadQueue();
+    queue.push({ action, payload });
+    saveQueue(queue);
+    setQueueCount(queue.length);
+  }, []);
+
   const writeTransaction = useCallback(async (action, payload, snapshot) => {
     if (!gasUrl) {
       showToast("Keine Google-Apps-Script-URL hinterlegt. Änderung wurde nur lokal gespeichert.", "error");
@@ -615,10 +651,57 @@ function App() {
       }, 1500);
       return true;
     } catch (err) {
-      setTransactions(snapshot);
+      // Statt zurückzurollen: Buchung bleibt sichtbar (lokal), die Aktion
+      // wandert in die Warteschlange und wird beim nächsten erfolgreichen
+      // Synchronisieren automatisch nachgeholt.
+      enqueue(action, payload);
       setSyncStatus("offline");
-      showToast("Speichern fehlgeschlagen (" + err.message + "). Änderung wurde zurückgerollt.", "error");
-      return false;
+      showToast("Kein Netz oder Verbindung fehlgeschlagen (" + err.message + "). Buchung bleibt gespeichert und wird automatisch nachgeholt, sobald es wieder klappt.", "error");
+      return true;
+    }
+  }, [gasUrl, showToast, enqueue]);
+
+  const processQueue = useCallback(async () => {
+    if (!gasUrl) return;
+    let queue = loadQueue();
+    if (queue.length === 0) return;
+    let currentTx = [];
+    try {
+      const data = await gasGet(gasUrl);
+      currentTx = mapRemoteData(data).transactions;
+    } catch (e) {
+      return; // noch kein Netz - beim nächsten Mal erneut versuchen
+    }
+    const remaining = [];
+    let erledigt = 0;
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      try {
+        if (item.action === "create") {
+          const existiertBereits = currentTx.some((t) => t.id === item.payload.id);
+          if (!existiertBereits) await gasPost(gasUrl, { action: "create", ...item.payload });
+        } else if (item.action === "update") {
+          await gasPost(gasUrl, { action: "update", ...item.payload });
+        } else if (item.action === "delete") {
+          try {
+            await gasPost(gasUrl, { action: "delete", id: item.payload.id });
+          } catch (delErr) {
+            if (!/nicht gefunden/i.test(delErr.message)) throw delErr;
+          }
+        }
+        erledigt++;
+      } catch (err) {
+        // Ab hier abbrechen und Rest (in ursprünglicher Reihenfolge) für den
+        // nächsten Versuch aufheben, damit die zeitliche Reihenfolge erhalten bleibt.
+        remaining.push(...queue.slice(i));
+        break;
+      }
+    }
+    saveQueue(remaining);
+    setQueueCount(remaining.length);
+    if (erledigt > 0) {
+      showToast(`${erledigt} nachgeholte Buchung(en) erfolgreich synchronisiert.`);
+      syncFromRemote(true);
     }
   }, [gasUrl, showToast]);
 
@@ -657,12 +740,12 @@ function App() {
       try {
         const data = await gasGet(gasUrl);
         const mapped = mapRemoteData(data);
-        currentTx = mapped.transactions;
+        currentTx = mergeWithQueue(mapped.transactions, loadQueue());
         setAccounts(mapped.accounts);
         setCategories(mapped.categories);
         setFixedCosts(mapped.fixedCosts);
         setEinstellungen(mapped.einstellungen);
-        setTransactions(mapped.transactions);
+        setTransactions(currentTx);
       } catch (err) {
         setSyncStatus("offline");
         showToast("Monatslauf abgebrochen: Konnte vorab nicht mit dem Sheet abgleichen (" + err.message + ").", "error");
@@ -791,7 +874,12 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false)} />
+          {queueCount > 0 && (
+            <span title={`${queueCount} Buchung(en) warten auf Synchronisierung`} className="flex animate-pulse items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
+              <Icon name="loader" size={13} />{queueCount}
+            </span>
+          )}
+          <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false).then(() => processQueue())} />
           <button onClick={toggleTheme} title={isLight ? "Dunkles Design" : "Helles Design"} className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-zinc-600">
             <Icon name={isLight ? "moon" : "sun"} size={15} />
           </button>
@@ -835,7 +923,7 @@ function App() {
           <Auswertung transactions={transactions} accounts={accounts} ingBalance={ingBalance} trGesamt={trGesamt} />
         )}
         {activeTab === "einstellungen" && (
-          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false)} />
+          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount} />
         )}
       </main>
 
@@ -1503,11 +1591,16 @@ function Auswertung({ transactions, accounts }) {
 
 /* ============================== Einstellungen ============================== */
 
-function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync }) {
+function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount }) {
   const [value, setValue] = useState(gasUrl);
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <h2 className="text-base font-semibold text-zinc-200">Einstellungen</h2>
+      {queueCount > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-[12.5px] text-amber-200">
+          {queueCount} Buchung(en) konnten noch nicht synchronisiert werden und warten lokal auf diesem Gerät. Sie werden automatisch nachgeholt, sobald wieder eine Verbindung besteht – oder klicke unten auf "Jetzt synchronisieren".
+        </div>
+      )}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
         <Field label="Google Apps Script Web-App URL">
           <input className={inputCls} placeholder="https://script.google.com/macros/s/…/exec" value={value} onChange={(e) => setValue(e.target.value)} />
