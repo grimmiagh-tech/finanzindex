@@ -131,6 +131,16 @@
     <p class="a">Über das Sonne-/Mond-Symbol oben rechts im Header der App.</p>
   </details>
 
+  <details class="card">
+    <summary class="q">Was bedeutet die Zeitangabe neben dem Sync-Symbol (z. B. "vor 2 Min")?</summary>
+    <p class="a">Das ist der Zeitpunkt der letzten erfolgreich bestätigten Synchronisierung mit dem Google Sheet, keine Live-Uhr. Während gerade synchronisiert wird, steht dort "läuft…", bei einem Fehlschlag "Fehler". Ein Antippen des Symbols stößt jederzeit eine erneute Synchronisierung an.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum dauert die Synchronisierung auf dem Smartphone manchmal sehr lange?</summary>
+    <p class="a">Die Oberfläche zeigt sofort den zuletzt gespeicherten Stand aus einem lokalen Zwischenspeicher an – die Zahlen erscheinen also unmittelbar. Im Hintergrund läuft parallel die eigentliche Verbindung zu Google Apps Script, die bei schwachem Mobilfunkempfang deutlich länger dauern kann, da die Antwort dabei technisch über einen zusätzlichen Zwischenschritt (eine Weiterleitung) ausgeliefert wird. Das ist eine bekannte Einschränkung von Google Apps Script bei mobilen Verbindungen, keine Fehlfunktion der App. Die App bleibt währenddessen normal bedienbar.</p>
+  </details>
+
   <p class="cat">Technischer Überblick</p>
 
   <details class="card">

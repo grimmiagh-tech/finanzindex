@@ -549,17 +549,29 @@ function Field({ label, children }) {
 }
 const inputCls = "w-full rounded-lg border border-zinc-700 bg-zinc-800/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50";
 
-function SyncIndicator({ status, onClick }) {
+function relativeTime(ts) {
+  if (!ts) return "";
+  const diffSec = Math.floor((Date.now() - ts) / 1000);
+  if (diffSec < 10) return "gerade eben";
+  if (diffSec < 60) return `vor ${diffSec}s`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin} Min`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `vor ${diffHr} Std`;
+  return `vor ${Math.floor(diffHr / 24)} Tg`;
+}
+
+function SyncIndicator({ status, lastSync, onClick }) {
   const conf = {
-    connected: { icon: "wifi", cls: "text-emerald-400", label: "Verbunden" },
-    syncing: { icon: "loader", cls: "text-amber-400 animate-spin", label: "Synchronisiere…" },
-    offline: { icon: "wifiOff", cls: "text-amber-400 animate-pulse", label: "Offline / Fehler" },
-    none: { icon: "wifiOff", cls: "text-zinc-500", label: "Keine GAS-URL hinterlegt" },
+    connected: { icon: "wifi", cls: "text-emerald-400", text: lastSync ? relativeTime(lastSync) : "Verbunden", title: "Zuletzt erfolgreich synchronisiert" },
+    syncing: { icon: "loader", cls: "text-amber-400 animate-spin", text: "läuft…", title: "Synchronisiere gerade" },
+    offline: { icon: "wifiOff", cls: "text-amber-400 animate-pulse", text: "Fehler", title: "Synchronisierung fehlgeschlagen" },
+    none: { icon: "wifiOff", cls: "text-zinc-500", text: "getrennt", title: "Keine Google-Apps-Script-URL hinterlegt" },
   }[status];
   return (
-    <button onClick={onClick} title={conf.label} className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 px-2.5 py-1.5 text-xs text-zinc-300 hover:border-zinc-600">
+    <button onClick={onClick} title={conf.title} className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 px-2.5 py-1.5 text-xs text-zinc-300 hover:border-zinc-600">
       <Icon name={conf.icon} size={14} className={conf.cls} />
-      <span className="hidden sm:inline">{conf.label}</span>
+      <span>{conf.text}</span>
     </button>
   );
 }
@@ -576,6 +588,21 @@ function App() {
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [syncStatus, setSyncStatus] = useState(gasUrl ? "offline" : "none");
+  const [lastSync, setLastSync] = useState(() => {
+    try { const v = localStorage.getItem("finanzindex_last_sync"); return v ? Number(v) : null; } catch (e) { return null; }
+  });
+  const markSynced = useCallback(() => {
+    const now = Date.now();
+    setLastSync(now);
+    try { localStorage.setItem("finanzindex_last_sync", String(now)); } catch (e) {}
+  }, []);
+  // Sorgt dafür, dass die relative Zeitangabe ("vor 2 Min") auch dann
+  // weiterzählt, wenn sonst nichts Neues passiert.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forceTick((n) => n + 1), 15000);
+    return () => clearInterval(t);
+  }, []);
   const [isLight, setIsLight] = useState(() => { try { return localStorage.getItem("finanzindex_theme") === "light"; } catch (e) { return false; } });
   const [toast, setToast] = useState(null);
   const [editingTx, setEditingTx] = useState(null);
@@ -638,6 +665,7 @@ function App() {
       setEinstellungen(mapped.einstellungen);
       setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
       setSyncStatus("connected");
+      markSynced();
       if (!silent) showToast("Mit Google Sheet synchronisiert.");
     } catch (err) {
       setSyncStatus("offline");
@@ -679,6 +707,7 @@ function App() {
     try {
       await gasPost(gasUrl, { action, ...payload });
       setSyncStatus("connected");
+      markSynced();
       showToast(action === "delete" ? "Buchung gelöscht und synchronisiert." : "Buchung gespeichert und synchronisiert.");
       setTimeout(async () => {
         try {
@@ -847,7 +876,7 @@ function App() {
         break;
       }
     }
-    if (gasUrl && !stoppedAt) setSyncStatus("connected");
+    if (gasUrl && !stoppedAt) { setSyncStatus("connected"); markSynced(); }
 
     setLastRunInfo({ created, skipped, salaryDate, fixedDate, targetMonthKey });
     if (stoppedAt) {
@@ -939,7 +968,7 @@ function App() {
               {isProcessingQueue ? "Versuche…" : queueCount}
             </button>
           )}
-          <SyncIndicator status={syncStatus} onClick={() => syncFromRemote(false).then(() => processQueue())} />
+          <SyncIndicator status={syncStatus} lastSync={lastSync} onClick={() => syncFromRemote(false).then(() => processQueue())} />
           <button onClick={toggleTheme} title={isLight ? "Dunkles Design" : "Helles Design"} className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-zinc-600">
             <Icon name={isLight ? "moon" : "sun"} size={15} />
           </button>
