@@ -1725,7 +1725,10 @@ function computeKategorienAuswertung(transactions, monatsFilter) {
   return Object.entries(map).map(([kategorie, betrag]) => ({ kategorie, betrag: Math.round(betrag * 100) / 100 })).sort((a, b) => b.betrag - a.betrag);
 }
 
-const KATEGORIE_FARBPALETTE = ["#f59e0b", "#a78bfa", "#fb923c", "#fb7185", "#38bdf8", "#c084fc", "#4ade80", "#f472b6", "#818cf8", "#94a3b8"];
+// Bewusst weit auseinanderliegende Farbtöne (nicht mehrere Violett-/Rosatöne
+// nebeneinander wie zuvor), mittlere Helligkeit/Sättigung, damit jede Farbe
+// sowohl auf hellem als auch auf dunklem Hintergrund gut lesbar bleibt.
+const KATEGORIE_FARBPALETTE = ["#0ea5e9", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#14b8a6", "#ec4899", "#ca8a04", "#6366f1", "#64748b"];
 // Feste Farbe pro Kategorie-Name (statt nach Rang), damit dieselbe Kategorie
 // über alle Ansichten und Monate hinweg immer dieselbe Farbe hat - Grundlage
 // für einen sinnvollen Vergleich im Jahresverlauf.
