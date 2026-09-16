@@ -1070,7 +1070,7 @@ function App() {
           <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} />
         )}
         {activeTab === "auswertung" && (
-          <Auswertung transactions={transactions} accounts={accounts} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
+          <Auswertung transactions={transactions} accounts={accounts} categories={categories} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
         )}
         {activeTab === "einstellungen" && (
           <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount} />
@@ -1725,17 +1725,59 @@ function computeKategorienAuswertung(transactions, monatsFilter) {
   return Object.entries(map).map(([kategorie, betrag]) => ({ kategorie, betrag: Math.round(betrag * 100) / 100 })).sort((a, b) => b.betrag - a.betrag);
 }
 
-function Auswertung({ transactions, accounts, kontoauszuege }) {
+const KATEGORIE_FARBPALETTE = ["#f59e0b", "#a78bfa", "#fb923c", "#fb7185", "#38bdf8", "#c084fc", "#4ade80", "#f472b6", "#818cf8", "#94a3b8"];
+// Feste Farbe pro Kategorie-Name (statt nach Rang), damit dieselbe Kategorie
+// über alle Ansichten und Monate hinweg immer dieselbe Farbe hat - Grundlage
+// für einen sinnvollen Vergleich im Jahresverlauf.
+function getKategorieFarbe(name, categories) {
+  const alleNamen = Array.from(new Set([...categories.map((c) => c.name), "Sonstiges"])).sort();
+  const index = alleNamen.indexOf(name);
+  return KATEGORIE_FARBPALETTE[(index >= 0 ? index : 0) % KATEGORIE_FARBPALETTE.length];
+}
+
+// Nur die letzten zwei Kalenderjahre stehen zur Auswahl (aktuelles Jahr und
+// ggf. das direkt vorherige, falls dafür Daten existieren) - ältere Jahre
+// fallen automatisch aus der Auswahl heraus.
+function getVerfuegbareJahre(transactions) {
+  const heute = new Date().getFullYear();
+  const vorhanden = new Set(transactions.map((t) => Number((t.datum || "").slice(0, 4))).filter((y) => !isNaN(y)));
+  return [heute - 1, heute].filter((y) => vorhanden.has(y) || y === heute);
+}
+
+const MONATSNAMEN_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+function computeJahresverlauf(transactions, jahr) {
+  const heute = new Date();
+  const maxMonat = jahr === heute.getFullYear() ? heute.getMonth() : 11;
+  const monate = [];
+  for (let m = 0; m <= maxMonat; m++) {
+    const mk = `${jahr}-${String(m + 1).padStart(2, "0")}`;
+    const monthTx = transactions.filter((t) => t.typ === "Ausgabe" && monthKey(t.datum) === mk);
+    const perKategorie = {};
+    monthTx.forEach((t) => { const k = t.kategorie || "Sonstiges"; perKategorie[k] = (perKategorie[k] || 0) + Number(t.betrag || 0); });
+    monate.push({ label: MONATSNAMEN_KURZ[m], kategorien: perKategorie });
+  }
+  const alleKategorien = Array.from(new Set(monate.flatMap((m) => Object.keys(m.kategorien))));
+  return { monate, kategorien: alleKategorien };
+}
+
+function Auswertung({ transactions, accounts, categories, kontoauszuege }) {
   const [ansicht, setAnsicht] = useState("monat");
   const currentMK = monthKey(todayISO());
+  const verfuegbareJahre = useMemo(() => getVerfuegbareJahre(transactions), [transactions]);
+  const istJahresansicht = ansicht.startsWith("jahr-");
+  const ausgewaehltesJahr = istJahresansicht ? Number(ansicht.split("-")[1]) : null;
 
   const verlauf = useMemo(() => computeVermoegensverlauf(accounts, transactions), [accounts, transactions]);
   const kategorien = useMemo(() => computeKategorienAuswertung(transactions, ansicht === "monat" ? currentMK : null), [transactions, ansicht]);
+  const jahresdaten = useMemo(() => (istJahresansicht ? computeJahresverlauf(transactions, ausgewaehltesJahr) : null), [transactions, ansicht]);
 
   const verlaufRef = useRef(null);
   const verlaufChart = useRef(null);
   const katRef = useRef(null);
   const katChart = useRef(null);
+  const jahrRef = useRef(null);
+  const jahrChart = useRef(null);
 
   useEffect(() => {
     if (!verlaufRef.current || typeof Chart === "undefined" || verlauf.length === 0) return;
@@ -1759,14 +1801,13 @@ function Auswertung({ transactions, accounts, kontoauszuege }) {
   }, [JSON.stringify(verlauf)]);
 
   useEffect(() => {
-    if (!katRef.current || typeof Chart === "undefined") return;
+    if (istJahresansicht || !katRef.current || typeof Chart === "undefined") return;
     if (katChart.current) katChart.current.destroy();
-    const colors = ["#f59e0b", "#a78bfa", "#fb923c", "#fb7185", "#38bdf8", "#c084fc", "#4ade80", "#f472b6", "#818cf8", "#94a3b8"];
     katChart.current = new Chart(katRef.current, {
       type: "bar",
       data: {
         labels: kategorien.map((k) => k.kategorie),
-        datasets: [{ data: kategorien.map((k) => k.betrag), backgroundColor: kategorien.map((_, i) => colors[i % colors.length]), borderRadius: 4 }],
+        datasets: [{ data: kategorien.map((k) => k.betrag), backgroundColor: kategorien.map((k) => getKategorieFarbe(k.kategorie, categories)), borderRadius: 4 }],
       },
       options: {
         indexAxis: "y", responsive: true, maintainAspectRatio: false,
@@ -1778,7 +1819,33 @@ function Auswertung({ transactions, accounts, kontoauszuege }) {
       },
     });
     return () => { if (katChart.current) katChart.current.destroy(); };
-  }, [JSON.stringify(kategorien)]);
+  }, [JSON.stringify(kategorien), istJahresansicht]);
+
+  useEffect(() => {
+    if (!istJahresansicht || !jahrRef.current || typeof Chart === "undefined" || !jahresdaten) return;
+    if (jahrChart.current) jahrChart.current.destroy();
+    jahrChart.current = new Chart(jahrRef.current, {
+      type: "bar",
+      data: {
+        labels: jahresdaten.monate.map((m) => m.label),
+        datasets: jahresdaten.kategorien.map((kat) => ({
+          label: kat,
+          data: jahresdaten.monate.map((m) => Math.round((m.kategorien[kat] || 0) * 100) / 100),
+          backgroundColor: getKategorieFarbe(kat, categories),
+          borderRadius: 3,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { stacked: true, ticks: { color: "#898781" }, grid: { display: false } },
+          y: { stacked: true, ticks: { color: "#898781", callback: (v) => eur(v) }, grid: { color: "rgba(255,255,255,0.08)" } },
+        },
+      },
+    });
+    return () => { if (jahrChart.current) jahrChart.current.destroy(); };
+  }, [JSON.stringify(jahresdaten), istJahresansicht]);
 
   return (
     <div className="space-y-6">
@@ -1790,16 +1857,38 @@ function Auswertung({ transactions, accounts, kontoauszuege }) {
         {verlauf.length > 1 ? <canvas ref={verlaufRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Noch nicht genug Buchungen für einen Verlauf.</p>}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-zinc-200">Wofür geht dein Geld weg?</h2>
         <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900/50 p-1">
           <button onClick={() => setAnsicht("monat")} className={`rounded-md px-2.5 py-1 text-xs ${ansicht === "monat" ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400"}`}>Dieser Monat</button>
+          {verfuegbareJahre.map((jahr) => (
+            <button key={jahr} onClick={() => setAnsicht("jahr-" + jahr)} className={`rounded-md px-2.5 py-1 text-xs ${ansicht === "jahr-" + jahr ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400"}`}>{jahr}</button>
+          ))}
           <button onClick={() => setAnsicht("alle")} className={`rounded-md px-2.5 py-1 text-xs ${ansicht === "alle" ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400"}`}>Gesamt</button>
         </div>
       </div>
-      <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4" style={{ height: Math.max(220, kategorien.length * 34 + 40) }}>
-        {kategorien.length > 0 ? <canvas ref={katRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Keine Ausgaben in diesem Zeitraum.</p>}
-      </div>
+
+      {istJahresansicht ? (
+        <>
+          {jahresdaten && jahresdaten.kategorien.length > 0 && (
+            <div className="flex flex-wrap gap-3 text-[11.5px] text-zinc-400">
+              {jahresdaten.kategorien.map((kat) => (
+                <span key={kat} className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: getKategorieFarbe(kat, categories) }} />
+                  {kat}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative h-72 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+            {jahresdaten && jahresdaten.kategorien.length > 0 ? <canvas ref={jahrRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Keine Ausgaben für {ausgewaehltesJahr} vorhanden.</p>}
+          </div>
+        </>
+      ) : (
+        <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4" style={{ height: Math.max(220, kategorien.length * 34 + 40) }}>
+          {kategorien.length > 0 ? <canvas ref={katRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Keine Ausgaben in diesem Zeitraum.</p>}
+        </div>
+      )}
 
       <h2 className="text-base font-semibold text-zinc-200">Kontoauszüge</h2>
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-2">
