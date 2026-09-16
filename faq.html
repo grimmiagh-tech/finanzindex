@@ -109,6 +109,28 @@
     <p class="a">Bei kleineren, kürzlichen Fehlern reicht oft "Datei" → "Versionsverlauf" direkt in Google Sheets, ganz ohne Backup-Datei. Bei größeren Problemen: die Backup-Datei in Drive öffnen und die benötigten Werte manuell zurück ins Original-Sheet übertragen.</p>
   </details>
 
+  <p class="cat">Kontoauszug</p>
+
+  <details class="card">
+    <summary class="q">Was ist der Kontoauszug und wann entsteht er?</summary>
+    <p class="a">Ein fester, unveränderlicher PDF-Schnappschuss des abgelaufenen Monats – anders als das Sheet, das sich laufend weiter verändert. Er entsteht automatisch als Teil des monatlichen Ablaufs: Ausgaberest-Ausgleich → Kontoauszug → neue Fixkosten → Backup. Läuft also ebenfalls am 1. jeden Monats zwischen 1 und 2 Uhr, sobald <code>installTrigger</code> eingerichtet ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was steht genau im Kontoauszug?</summary>
+    <p class="a">Oben die Gesamtsummen (Einnahmen, Ausgaben, Netto), danach je Konto der Anfangs- und Endsaldo sowie die Veränderung, danach alle Einzelbuchungen des Monats chronologisch – inklusive der automatischen Ausgaberest-Ausgleichsbuchungen, die noch im alten Monat datiert sind.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wo wird der Kontoauszug gespeichert und wie sehe ich ihn mir an?</summary>
+    <p class="a">Als PDF im Drive-Ordner "Finanzindex Kontoauszüge" (wird beim ersten Mal automatisch angelegt), neben dem Sheet. In der App im Tab "Auswertung" erscheint unten eine Liste aller bisher erstellten Kontoauszüge zum direkten Antippen und Ansehen – ohne selbst etwas herunterzuladen, da die Datei ja bereits in Drive liegt.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie lässt sich sofort ein Kontoauszug erstellen, ohne zu warten?</summary>
+    <p class="a">Im Apps-Script-Editor die Funktion <code>kontoauszugJetzt</code> auswählen und ausführen – erstellt den Kontoauszug für den Vormonat sofort, unabhängig vom automatischen Monatswechsel.</p>
+  </details>
+
   <p class="cat">Bedienung</p>
 
   <details class="card">
@@ -166,6 +188,11 @@
   <details class="card">
     <summary class="q">Was passiert ohne Internetverbindung?</summary>
     <p class="a">Es wird der zuletzt geladene Stand aus einem lokalen Zwischenspeicher im jeweiligen Browser angezeigt. Neue Buchungen können ohne Internetverbindung nicht gespeichert werden, da nichts ohne Verbindung ins Sheet geschrieben werden kann.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum wurden Buchungsdaten früher manchmal einen Tag zu früh angezeigt?</summary>
+    <p class="a">Google Apps Script rechnete Datumswerte beim Verpacken in die Antwort automatisch in Weltzeit (UTC) um, wodurch ein deutsches Datum um einen Tag zurückrutschen konnte. Behoben, indem Apps Script Datumswerte seitdem als eindeutigen Text (z. B. "2026-09-16") statt als Zeitwert verschickt. Die eigentlichen Buchungen im Sheet waren davon nie betroffen, nur die Anzeige in der App nach dem Laden.</p>
   </details>
 </main>
 <script>

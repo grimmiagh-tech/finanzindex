@@ -457,8 +457,9 @@ function mapRemoteData(data) {
     .sort((a, b) => (a.datum < b.datum ? 1 : -1));
 
   const einstellungen = data.einstellungen || [];
+  const kontoauszuege = data.kontoauszuege || [];
 
-  return { accounts, categories, fixedCosts, transactions, einstellungen };
+  return { accounts, categories, fixedCosts, transactions, einstellungen, kontoauszuege };
 }
 
 /* ============================== Icons (minimal, ohne externe Abhängigkeit) ============================== */
@@ -585,6 +586,7 @@ function App() {
   const [transactions, setTransactions] = useState(initial?.transactions || []);
   const [fixedCosts, setFixedCosts] = useState(initial?.fixedCosts || []);
   const [einstellungen, setEinstellungen] = useState(initial?.einstellungen || []);
+  const [kontoauszuege, setKontoauszuege] = useState(initial?.kontoauszuege || []);
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [syncStatus, setSyncStatus] = useState(gasUrl ? "offline" : "none");
@@ -663,6 +665,7 @@ function App() {
       setCategories(mapped.categories);
       setFixedCosts(mapped.fixedCosts);
       setEinstellungen(mapped.einstellungen);
+      setKontoauszuege(mapped.kontoauszuege);
       setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
       setSyncStatus("connected");
       markSynced();
@@ -1009,7 +1012,7 @@ function App() {
           <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} />
         )}
         {activeTab === "auswertung" && (
-          <Auswertung transactions={transactions} accounts={accounts} ingBalance={ingBalance} trGesamt={trGesamt} />
+          <Auswertung transactions={transactions} accounts={accounts} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
         )}
         {activeTab === "einstellungen" && (
           <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount} />
@@ -1648,7 +1651,7 @@ function computeKategorienAuswertung(transactions, monatsFilter) {
   return Object.entries(map).map(([kategorie, betrag]) => ({ kategorie, betrag: Math.round(betrag * 100) / 100 })).sort((a, b) => b.betrag - a.betrag);
 }
 
-function Auswertung({ transactions, accounts }) {
+function Auswertung({ transactions, accounts, kontoauszuege }) {
   const [ansicht, setAnsicht] = useState("monat");
   const currentMK = monthKey(todayISO());
 
@@ -1722,6 +1725,19 @@ function Auswertung({ transactions, accounts }) {
       </div>
       <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4" style={{ height: Math.max(220, kategorien.length * 34 + 40) }}>
         {kategorien.length > 0 ? <canvas ref={katRef} /> : <p className="flex h-full items-center justify-center text-sm text-zinc-500">Keine Ausgaben in diesem Zeitraum.</p>}
+      </div>
+
+      <h2 className="text-base font-semibold text-zinc-200">Kontoauszüge</h2>
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-2">
+        {(kontoauszuege || []).length === 0 && (
+          <p className="p-3 text-sm text-zinc-500">Noch keine Kontoauszüge vorhanden – der erste entsteht automatisch beim nächsten Monatswechsel.</p>
+        )}
+        {(kontoauszuege || []).map((k) => (
+          <a key={k.url} href={k.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800/50">
+            <span className="flex items-center gap-2"><Icon name="download" size={14} className="text-zinc-500" />{k.name.replace(".pdf", "")}</span>
+            <Icon name="chevron" size={14} className="-rotate-90 text-zinc-500" />
+          </a>
+        ))}
       </div>
     </div>
   );
