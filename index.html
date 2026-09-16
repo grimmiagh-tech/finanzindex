@@ -151,6 +151,20 @@ function mergeWithQueue(serverTx, queue) {
   });
   return result;
 }
+// Gleiches Prinzip wie mergeWithQueue, nur für Fixkosten_Plan-Positionen.
+function mergeFixkostenWithQueue(serverFk, queue) {
+  let result = serverFk;
+  queue.forEach((item) => {
+    if (item.action === "fixkosten-create") {
+      if (!result.some((f) => f.id === item.payload.id)) result = [...result, item.payload];
+    } else if (item.action === "fixkosten-update") {
+      result = result.map((f) => (f.id === item.payload.id ? item.payload : f));
+    } else if (item.action === "fixkosten-delete") {
+      result = result.filter((f) => f.id !== item.payload.id);
+    }
+  });
+  return result;
+}
 
 /* ============================== Hilfsfunktionen ============================== */
 
@@ -436,7 +450,7 @@ function mapRemoteData(data) {
   }));
 
   const fixedCosts = (data.fixkosten || []).map((r, i) => ({
-    id: "fix-" + i,
+    id: r.ID || ("fix-" + i),
     bezeichnung: r.Bezeichnung,
     betrag: parseGermanNumber(r.Betrag),
     kategorie: r.Kategorie,
@@ -663,7 +677,7 @@ function App() {
       const mapped = mapRemoteData(data);
       setAccounts(mapped.accounts);
       setCategories(mapped.categories);
-      setFixedCosts(mapped.fixedCosts);
+      setFixedCosts(mergeFixkostenWithQueue(mapped.fixedCosts, loadQueue()));
       setEinstellungen(mapped.einstellungen);
       setKontoauszuege(mapped.kontoauszuege);
       setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
@@ -732,6 +746,37 @@ function App() {
     }
   }, [gasUrl, showToast, enqueue]);
 
+  /* ---------- Fixkosten-Position anlegen / bearbeiten / löschen: gleiches Prinzip wie Buchungen ---------- */
+  const writeFixkosten = useCallback(async (action, payload) => {
+    if (!gasUrl) {
+      showToast("Keine Google-Apps-Script-URL hinterlegt. Änderung wurde nur lokal gespeichert.", "error");
+      return;
+    }
+    setSyncStatus("syncing");
+    try {
+      await gasPost(gasUrl, { action, ...payload });
+      setSyncStatus("connected");
+      markSynced();
+      showToast(action === "fixkosten-delete" ? "Fixkosten-Position gelöscht und synchronisiert." : "Fixkosten-Position gespeichert und synchronisiert.");
+    } catch (err) {
+      enqueue(action, payload);
+      setSyncStatus("offline");
+      showToast("Kein Netz oder Verbindung fehlgeschlagen (" + err.message + "). Änderung bleibt gespeichert und wird automatisch nachgeholt.", "error");
+    }
+  }, [gasUrl, showToast, enqueue]);
+
+  const handleFixkostenSave = useCallback((form) => {
+    const isEdit = fixedCosts.some((f) => f.id === form.id);
+    const payload = isEdit ? form : { ...form, id: uid() };
+    setFixedCosts((prev) => (isEdit ? prev.map((f) => (f.id === payload.id ? payload : f)) : [...prev, payload]));
+    writeFixkosten(isEdit ? "fixkosten-update" : "fixkosten-create", payload);
+  }, [fixedCosts, writeFixkosten]);
+
+  const handleFixkostenDelete = useCallback((id) => {
+    setFixedCosts((prev) => prev.filter((f) => f.id !== id));
+    writeFixkosten("fixkosten-delete", { id });
+  }, [writeFixkosten]);
+
   const processingQueueRef = useRef(false);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
@@ -747,10 +792,12 @@ function App() {
     processingQueueRef.current = true;
     setIsProcessingQueue(true);
     try {
-      let currentTx = [];
+      let currentTx = [], currentFixedCosts = [];
       try {
         const data = await gasGet(gasUrl);
-        currentTx = mapRemoteData(data).transactions;
+        const mapped = mapRemoteData(data);
+        currentTx = mapped.transactions;
+        currentFixedCosts = mapped.fixedCosts;
       } catch (e) {
         return; // noch kein Netz - beim nächsten Mal erneut versuchen
       }
@@ -770,6 +817,17 @@ function App() {
             } catch (delErr) {
               if (!/nicht gefunden/i.test(delErr.message)) throw delErr;
             }
+          } else if (item.action === "fixkosten-create") {
+            const existiertBereits = currentFixedCosts.some((f) => f.id === item.payload.id);
+            if (!existiertBereits) await gasPost(gasUrl, { action: "fixkosten-create", ...item.payload });
+          } else if (item.action === "fixkosten-update") {
+            await gasPost(gasUrl, { action: "fixkosten-update", ...item.payload });
+          } else if (item.action === "fixkosten-delete") {
+            try {
+              await gasPost(gasUrl, { action: "fixkosten-delete", id: item.payload.id });
+            } catch (delErr) {
+              if (!/nicht gefunden/i.test(delErr.message)) throw delErr;
+            }
           }
           erledigt++;
         } catch (err) {
@@ -782,7 +840,7 @@ function App() {
       saveQueue(remaining);
       setQueueCount(remaining.length);
       if (erledigt > 0) {
-        showToast(`${erledigt} nachgeholte Buchung(en) erfolgreich synchronisiert.`);
+        showToast(`${erledigt} nachgeholte Änderung(en) erfolgreich synchronisiert.`);
         syncFromRemote(true);
       }
     } finally {
@@ -829,7 +887,7 @@ function App() {
         currentTx = mergeWithQueue(mapped.transactions, loadQueue());
         setAccounts(mapped.accounts);
         setCategories(mapped.categories);
-        setFixedCosts(mapped.fixedCosts);
+        setFixedCosts(mergeFixkostenWithQueue(mapped.fixedCosts, loadQueue()));
         setEinstellungen(mapped.einstellungen);
         setTransactions(currentTx);
       } catch (err) {
@@ -1005,7 +1063,7 @@ function App() {
             showFilters={showFilters} setShowFilters={setShowFilters} onEdit={(tx) => setEditingTx(tx)} onDelete={(id) => setConfirmDeleteId(id)} />
         )}
         {activeTab === "fixkosten" && (
-          <Fixkosten fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} categories={categories} accounts={accounts}
+          <Fixkosten fixedCosts={fixedCosts} onSaveFixkosten={handleFixkostenSave} onDeleteFixkosten={handleFixkostenDelete} categories={categories} accounts={accounts}
             forceRun={forceRun} setForceRun={setForceRun} onRun={runMonthlyBooking} lastRunInfo={lastRunInfo} showToast={showToast} />
         )}
         {activeTab === "prognose" && (
@@ -1384,16 +1442,14 @@ function ConfirmModal({ title, message, onCancel, onConfirm }) {
 
 /* ============================== Fixkosten ============================== */
 
-function Fixkosten({ fixedCosts, setFixedCosts, categories, accounts, forceRun, setForceRun, onRun, lastRunInfo, showToast }) {
+function Fixkosten({ fixedCosts, onSaveFixkosten, onDeleteFixkosten, categories, accounts, forceRun, setForceRun, onRun, lastRunInfo, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const verteilung = useMemo(() => computeGehaltsverteilung(fixedCosts), [fixedCosts]);
-  const remove = (id) => { setFixedCosts((prev) => prev.filter((f) => f.id !== id)); showToast("Fixkosten-Position lokal entfernt (im Sheet manuell löschen, falls gewünscht)."); };
+  const remove = (id) => { onDeleteFixkosten(id); };
   const save = (form) => {
-    if (form.id) setFixedCosts((prev) => prev.map((f) => (f.id === form.id ? form : f)));
-    else setFixedCosts((prev) => [...prev, { ...form, id: uid() }]);
+    onSaveFixkosten(form);
     setShowForm(false); setEditing(null);
-    showToast("Fixkosten-Position lokal gespeichert (im Sheet manuell ergänzen, falls gewünscht).");
   };
   return (
     <div className="space-y-5">
@@ -1456,7 +1512,17 @@ function Fixkosten({ fixedCosts, setFixedCosts, categories, accounts, forceRun, 
         ))}
         {fixedCosts.length === 0 && <p className="py-8 text-center text-sm text-zinc-500">Noch keine Fixkosten geladen.</p>}
       </div>
-      {showForm && <FixkostenForm categories={categories} accounts={accounts} initial={editing} onCancel={() => { setShowForm(false); setEditing(null); }} onSave={save} />}
+      {showForm && (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center">
+          <div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-950 p-5 md:rounded-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-zinc-200">{editing ? "Position bearbeiten" : "Neue Fixkosten-Position"}</h3>
+              <button onClick={() => { setShowForm(false); setEditing(null); }} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800"><Icon name="x" size={18} /></button>
+            </div>
+            <FixkostenForm categories={categories} accounts={accounts} initial={editing} onCancel={() => { setShowForm(false); setEditing(null); }} onSave={save} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1465,8 +1531,7 @@ function FixkostenForm({ categories, accounts, initial, onCancel, onSave }) {
   const [form, setForm] = useState(initial || { id: null, bezeichnung: "", betrag: "", kategorie: "", typ: "Ausgabe", quelle: "", ziel: "", gueltigAb: todayISO(), gueltigBis: "" });
   const handleSubmit = (e) => { e.preventDefault(); if (!form.bezeichnung.trim() || !form.betrag || !form.quelle) return; onSave({ ...form, betrag: Number(form.betrag) }); };
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <h3 className="text-sm font-semibold text-zinc-200">{initial ? "Position bearbeiten" : "Neue Fixkosten-Position"}</h3>
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Bezeichnung"><input className={inputCls} value={form.bezeichnung} onChange={(e) => setForm((f) => ({ ...f, bezeichnung: e.target.value }))} /></Field>
         <Field label="Betrag (€)"><input type="number" step="0.01" className={inputCls} value={form.betrag} onChange={(e) => setForm((f) => ({ ...f, betrag: e.target.value }))} /></Field>
