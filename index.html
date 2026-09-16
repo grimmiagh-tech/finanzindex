@@ -1728,12 +1728,18 @@ function computeKategorienAuswertung(transactions, monatsFilter) {
 // Bewusst weit auseinanderliegende Farbtöne (nicht mehrere Violett-/Rosatöne
 // nebeneinander wie zuvor), mittlere Helligkeit/Sättigung, damit jede Farbe
 // sowohl auf hellem als auch auf dunklem Hintergrund gut lesbar bleibt.
-const KATEGORIE_FARBPALETTE = ["#0ea5e9", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#14b8a6", "#ec4899", "#ca8a04", "#6366f1", "#64748b"];
+// Bewährte, gut unterscheidbare Kategorie-Palette (Tableau10-Variante),
+// abgestimmt für gute Lesbarkeit sowohl im hellen als auch im dunklen Design.
+const KATEGORIE_FARBPALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#ff9da7", "#9c755f", "#d4a017", "#8c8681"];
 // Feste Farbe pro Kategorie-Name (statt nach Rang), damit dieselbe Kategorie
 // über alle Ansichten und Monate hinweg immer dieselbe Farbe hat - Grundlage
-// für einen sinnvollen Vergleich im Jahresverlauf.
+// für einen sinnvollen Vergleich im Jahresverlauf. Nur Ausgabe-Kategorien
+// werden gezählt, da Einnahme-Kategorien (z. B. "Gehalt") in diesem
+// Ausgaben-Diagramm ohnehin nie auftauchen und sonst unnötig eine
+// Farb-Position "verbrauchen" würden.
 function getKategorieFarbe(name, categories) {
-  const alleNamen = Array.from(new Set([...categories.map((c) => c.name), "Sonstiges"])).sort();
+  const ausgabeNamen = categories.filter((c) => c.typ === "Ausgabe").map((c) => c.name);
+  const alleNamen = Array.from(new Set([...ausgabeNamen, "Sonstiges"])).sort();
   const index = alleNamen.indexOf(name);
   return KATEGORIE_FARBPALETTE[(index >= 0 ? index : 0) % KATEGORIE_FARBPALETTE.length];
 }
