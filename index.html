@@ -1445,8 +1445,9 @@ function ConfirmModal({ title, message, onCancel, onConfirm }) {
 function Fixkosten({ fixedCosts, onSaveFixkosten, onDeleteFixkosten, categories, accounts, forceRun, setForceRun, onRun, lastRunInfo, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const verteilung = useMemo(() => computeGehaltsverteilung(fixedCosts), [fixedCosts]);
-  const remove = (id) => { onDeleteFixkosten(id); };
+  const remove = (id) => { onDeleteFixkosten(id); setConfirmDeleteId(null); };
   const save = (form) => {
     onSaveFixkosten(form);
     setShowForm(false); setEditing(null);
@@ -1506,7 +1507,7 @@ function Fixkosten({ fixedCosts, onSaveFixkosten, onDeleteFixkosten, categories,
             <p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-200">{eur(f.betrag)}</p>
             <div className="flex shrink-0 items-center gap-1">
               <button onClick={() => { setEditing(f); setShowForm(true); }} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"><Icon name="pencil" size={15} /></button>
-              <button onClick={() => remove(f.id)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400"><Icon name="trash" size={15} /></button>
+              <button onClick={() => setConfirmDeleteId(f.id)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400"><Icon name="trash" size={15} /></button>
             </div>
           </div>
         ))}
@@ -1522,6 +1523,14 @@ function Fixkosten({ fixedCosts, onSaveFixkosten, onDeleteFixkosten, categories,
             <FixkostenForm categories={categories} accounts={accounts} initial={editing} onCancel={() => { setShowForm(false); setEditing(null); }} onSave={save} />
           </div>
         </div>
+      )}
+      {confirmDeleteId && (
+        <ConfirmModal
+          title="Fixkosten-Position löschen?"
+          message="Diese Position wird endgültig aus dem Fixkosten_Plan entfernt. Bereits vergangene Buchungen sind davon nicht betroffen."
+          onCancel={() => setConfirmDeleteId(null)}
+          onConfirm={() => remove(confirmDeleteId)}
+        />
       )}
     </div>
   );
