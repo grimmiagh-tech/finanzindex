@@ -122,6 +122,10 @@ const POTS_OHNE_AUSGABEREST = ["Model 3", "Rücklage", "Jahres Rückstellung", "
 // Für diese Töpfe wird im Prognose-Tab eine 24-Monats-Vorschau berechnet.
 const PROGNOSE_TOEPFE = ["Model 3", "Rücklage"];
 const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg : "#94a3b8");
+// Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
+// von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
+// erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
+const APP_VERSION = "2026.1";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
@@ -2019,6 +2023,7 @@ function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahr
         </div>
         <Icon name="chevron" size={16} className="shrink-0 -rotate-90 text-zinc-500" />
       </a>
+      <p className="pt-1 text-center text-[11px] text-zinc-600">Version: {APP_VERSION}</p>
     </div>
   );
 }
