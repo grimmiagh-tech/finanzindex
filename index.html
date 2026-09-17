@@ -523,12 +523,15 @@ function Icon({ name, size = 16, className = "" }) {
   return <svg {...p}>{paths[name] || null}</svg>;
 }
 
-function AccountIcon({ name, size = 16, fallbackColor }) {
+function AccountIcon({ name, size = 16, fallbackColor, balance }) {
   const badge = ACCOUNT_BADGES[name];
+  const istMinus = typeof balance === "number" && balance < 0;
   if (badge) {
     return (
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: badge.bg }}>
-        <Icon name={badge.icon} size={size} className="text-white" />
+      <div className={`flex shrink-0 items-center justify-center rounded-xl transition-all ${istMinus ? "h-10 w-10" : "h-8 w-8"}`} style={{ backgroundColor: badge.bg }} title={istMinus ? "Konto im Minus" : undefined}>
+        {istMinus
+          ? <img src="icon-minus.png" alt="Konto im Minus - ratloses Männchen" className="h-8 w-8 object-contain" />
+          : <Icon name={badge.icon} size={size} className="text-white" />}
       </div>
     );
   }
@@ -1140,12 +1143,12 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Gesamtvermögen (ING + Trade Republic)" value={eur(gesamtvermoegen)} icon="landmark" accent="emerald" small />
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="mb-3"><AccountIcon name="Trade Republic" size={16} /></div>
+          <div className="mb-3"><AccountIcon name="Trade Republic" size={16} balance={trGesamt} /></div>
           <p className="text-[11px] text-zinc-500">Trade Republic gesamt</p>
           <p className={`mt-0.5 text-lg font-semibold tabular-nums ${amountColor(trGesamt)}`}>{eur(trGesamt)}</p>
         </div>
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="mb-3"><AccountIcon name="ING" size={16} /></div>
+          <div className="mb-3"><AccountIcon name="ING" size={16} balance={ingBalance} /></div>
           <p className="text-[11px] text-zinc-500">ING</p>
           <p className={`mt-0.5 text-lg font-semibold tabular-nums ${amountColor(ingBalance)}`}>{eur(ingBalance)}</p>
         </div>
@@ -1163,7 +1166,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <AccountIcon name="Trade Republic" fallbackColor="#10b981" />
+                  <AccountIcon name="Trade Republic" fallbackColor="#10b981" balance={trGesamt} />
                   <div><p className="text-sm text-zinc-200">Trade Republic</p><p className="text-[11px] text-zinc-500">Realkonto · besteht komplett aus den Töpfen unten</p></div>
                 </div>
                 <p className={`text-sm font-medium tabular-nums ${amountColor(trGesamt)}`}>{eur(trGesamt)}</p>
@@ -1171,7 +1174,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
             </div>
             <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
               <div className="flex items-center gap-2.5">
-                <AccountIcon name="ING" fallbackColor="#10b981" />
+                <AccountIcon name="ING" fallbackColor="#10b981" balance={ingBalance} />
                 <div><p className="text-sm text-zinc-200">ING</p><p className="text-[11px] text-zinc-500">Realkonto</p></div>
               </div>
               <p className={`text-sm font-medium tabular-nums ${amountColor(ingBalance)}`}>{eur(ingBalance)}</p>
@@ -1186,7 +1189,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
               return (
                 <div key={a.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <AccountIcon name={a.name} fallbackColor={a.farbe} size={15} />
+                    <AccountIcon name={a.name} fallbackColor={a.farbe} size={15} balance={val} />
                     <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
                   </div>
                   <span className={`text-sm font-medium tabular-nums ${amountColor(val)}`}>{eur(val)}</span>
