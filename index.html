@@ -267,32 +267,74 @@ function parseRate(v) {
 function getRateSchedule(einstellungen, kontoName) {
   return einstellungen
     .filter((r) => r.Konto === kontoName)
-    .map((r) => ({ ab: parseGermanDate(r["Gültig Ab"] || r["Gültig Ab "]), satz: parseRate(r["Zinssatz"]) }))
+    .map((r) => ({
+      ab: parseGermanDate(r["Gültig Ab"] || r["Gültig Ab "]),
+      bis: parseGermanDate(r["Gültig bis"]) || null,
+      satz: parseRate(r["Zinssatz"]),
+    }))
     .filter((r) => r.ab)
     .sort((a, b) => (a.ab < b.ab ? -1 : 1));
 }
 
+// Liefert den gültigen Zinssatz für ein Datum, oder null, wenn keine Zeile im
+// Blatt "Einstellungen" dieses Datum abdeckt (Lücke oder fehlende Zeile) -
+// damit lässt sich das im Aufrufer als klare Fehlermeldung statt als
+// stillschweigend falsche Zahl behandeln.
 function rateForDate(schedule, isoDate) {
-  let satz = schedule.length ? schedule[0].satz : 0;
-  for (const r of schedule) { if (r.ab <= isoDate) satz = r.satz; else break; }
-  return satz;
+  const treffer = schedule.find((r) => r.ab <= isoDate && (!r.bis || r.bis >= isoDate));
+  return treffer ? treffer.satz : null;
 }
 
 // Tagesgenaue Simulation: Zinsen werden täglich berechnet (Tagessaldo * Jahreszins / 365)
-// und am Monatsende gutgeschrieben. Am 1. jeden Monats (außer heute) kommt der
-// aktuell gültige monatliche Fixkosten-Beitrag hinzu.
-function simulateForecast(startBalance, monthlyContribution, schedule, monthsAhead) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+// und am Monatsende gutgeschrieben. Der bereits VERGANGENE Teil des laufenden
+// Monats wird taggenau aus den echten Buchungen dieses Kontos nachvollzogen -
+// nur für Tage, die wirklich noch in der Zukunft liegen, wird die aktuell
+// hinterlegte monatliche Fixkosten-Zuweisung als Annahme verwendet, da
+// zukünftige, ungeplante Buchungen naturgemäß niemand vorhersehen kann.
+function simulateForecast(accountName, accounts, transactions, monthlyContribution, schedule, monthsAhead) {
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const start = new Date(heute.getFullYear(), heute.getMonth(), 1);
   const end = new Date(start.getFullYear(), start.getMonth() + monthsAhead + 1, 0);
-  let balance = startBalance;
+  const startIso = toISO(start);
+
+  // Echter Kontostand unmittelbar VOR dem 1. des laufenden Monats als Basis.
+  const vorMonatsTx = transactions.filter((t) => t.datum < startIso);
+  let balance = computeBalances(accounts, vorMonatsTx)[accountName] || 0;
+
+  // Echte Buchungen dieses Kontos innerhalb des laufenden Monats, chronologisch.
+  const monatsTx = transactions
+    .filter((t) => t.datum >= startIso && (t.quelle === accountName || t.ziel === accountName))
+    .sort((a, b) => (a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0));
+
   let pending = 0;
   const rows = [];
   let d = new Date(start);
+  let txIndex = 0;
   while (d <= end) {
-    if (d.getDate() === 1 && d.getTime() !== start.getTime()) balance += monthlyContribution;
-    const satz = rateForDate(schedule, toISO(d));
+    const heuteIso = toISO(d);
+    // Echte, bereits erfolgte Buchungen dieses Tages anwenden.
+    while (txIndex < monatsTx.length && monatsTx[txIndex].datum === heuteIso) {
+      const t = monatsTx[txIndex];
+      const betrag = Number(t.betrag) || 0;
+      if (t.typ === "Ausgabe" && t.quelle === accountName) balance -= betrag;
+      else if (t.typ === "Einnahme" && t.ziel === accountName) balance += betrag;
+      else if (t.typ === "Umbuchung") {
+        if (t.quelle === accountName) balance -= betrag;
+        if (t.ziel === accountName) balance += betrag;
+      }
+      txIndex++;
+    }
+    // Nur für Tage, die noch in der Zukunft liegen, die bekannte monatliche
+    // Zuweisung am 1. eines Folgemonats als Annahme hinzufügen.
+    if (d.getDate() === 1 && d.getTime() > heute.getTime()) balance += monthlyContribution;
+
+    const satz = rateForDate(schedule, heuteIso);
+    if (satz === null) {
+      throw new Error(`Kein gültiger Zinssatz für den ${dateDE(heuteIso)} im Blatt "Einstellungen" hinterlegt (Lücke zwischen zwei "Gültig Ab"/"Gültig bis"-Zeilen). Bitte prüfen.`);
+    }
     pending += (balance * satz) / 365;
+
     const next = new Date(d); next.setDate(next.getDate() + 1);
     if (next.getMonth() !== d.getMonth()) {
       balance += pending;
@@ -1070,7 +1112,7 @@ function App() {
             forceRun={forceRun} setForceRun={setForceRun} onRun={runMonthlyBooking} lastRunInfo={lastRunInfo} showToast={showToast} />
         )}
         {activeTab === "prognose" && (
-          <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} />
+          <Prognose accounts={accounts} balances={balances} fixedCosts={fixedCosts} einstellungen={einstellungen} transactions={transactions} />
         )}
         {activeTab === "auswertung" && (
           <Auswertung transactions={transactions} accounts={accounts} categories={categories} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
@@ -1580,21 +1622,26 @@ function FixkostenForm({ categories, accounts, initial, onCancel, onSave }) {
 
 /* ============================== Prognose ============================== */
 
-function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
+function Prognose({ accounts, balances, fixedCosts, einstellungen, transactions }) {
   const MONATE_VORAUS = 24;
   const potAllocations = useMemo(() => getMonthlyPotAllocations(fixedCosts), [fixedCosts]);
   const trSchedule = useMemo(() => getRateSchedule(einstellungen, "Trade Republic"), [einstellungen]);
 
   const verfuegbareToepfe = PROGNOSE_TOEPFE.filter((name) => accounts.some((a) => a.name === name));
 
+  let prognoseFehler = null;
   const reihen = useMemo(() => {
-    return verfuegbareToepfe.map((name) => ({
-      name,
-      daten: simulateForecast(balances[name] || 0, potAllocations[name] || 0, trSchedule, MONATE_VORAUS),
-    }));
-  }, [verfuegbareToepfe.join(","), balances, potAllocations, trSchedule]);
+    return verfuegbareToepfe.map((name) => {
+      try {
+        return { name, daten: simulateForecast(name, accounts, transactions, potAllocations[name] || 0, trSchedule, MONATE_VORAUS) };
+      } catch (err) {
+        return { name, daten: [], fehler: err.message };
+      }
+    });
+  }, [verfuegbareToepfe.join(","), accounts, transactions, potAllocations, trSchedule]);
+  reihen.forEach((r) => { if (r.fehler && !prognoseFehler) prognoseFehler = r.fehler; });
 
-  const rows = reihen[0] ? reihen[0].daten.map((_, i) => {
+  const rows = !prognoseFehler && reihen[0] ? reihen[0].daten.map((_, i) => {
     const row = { monat: reihen[0].daten[i].monat };
     let zinsGesamt = 0;
     reihen.forEach((r) => {
@@ -1643,6 +1690,13 @@ function Prognose({ accounts, balances, fixedCosts, einstellungen }) {
     return (
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
         Im Blatt "Einstellungen" wurden keine Zinssätze für "Trade Republic" gefunden. Bitte prüfe, ob das Blatt existiert und die Spalten Konto, Gültig Ab, Zinssatz korrekt befüllt sind.
+      </div>
+    );
+  }
+  if (prognoseFehler) {
+    return (
+      <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-200">
+        Prognose kann nicht berechnet werden: {prognoseFehler}
       </div>
     );
   }
