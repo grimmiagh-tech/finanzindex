@@ -1159,6 +1159,75 @@ function App() {
 
 /* ============================== Dashboard ============================== */
 
+function PotRow({ a, val, hatStartbetrag, startbetrag }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <AccountIcon name={a.name} fallbackColor={a.farbe} balance={val} />
+        <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
+      </div>
+      <span className={`text-sm font-medium tabular-nums ${amountColor(val)}`}>{eur(val)}</span>
+    </div>
+  );
+}
+
+function ToepfeKarussell({ virtualAccounts, balances, potAllocations }) {
+  const scrollRef = useRef(null);
+  const [seite, setSeite] = useState(0);
+
+  const ausgaberest = virtualAccounts.find((a) => a.name === "Ausgaberest");
+  const karussellToepfe = virtualAccounts.filter((a) => a.name !== "Ausgaberest");
+  const seiten = [];
+  for (let i = 0; i < karussellToepfe.length; i += 3) seiten.push(karussellToepfe.slice(i, i + 3));
+
+  const budgetrestSumme = POTS_BUDGETREST.reduce((s, name) => s + (balances[name] || 0), 0);
+  const aktuellerMonatsname = MONATSNAMEN_VOLL[new Date().getMonth()];
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setSeite(idx);
+  };
+
+  return (
+    <div className="space-y-3">
+      {seiten.length > 0 && (
+        <>
+          <div ref={scrollRef} onScroll={handleScroll} className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {seiten.map((gruppe, i) => (
+              <div key={i} className="flex w-full shrink-0 snap-center flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-2.5">
+                {gruppe.map((a) => {
+                  const val = balances[a.name] || 0;
+                  const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
+                  return <PotRow key={a.id} a={a} val={val} hatStartbetrag={hatStartbetrag} startbetrag={potAllocations[a.name] || 0} />;
+                })}
+              </div>
+            ))}
+          </div>
+          {seiten.length > 1 && (
+            <div className="flex justify-center gap-1.5">
+              {seiten.map((_, i) => (
+                <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === seite ? "bg-emerald-400" : "bg-zinc-700"}`} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {ausgaberest && (
+        <PotRow a={ausgaberest} val={balances["Ausgaberest"] || 0} hatStartbetrag={false} startbetrag={0} />
+      )}
+      <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-600"><Icon name="chart" size={20} className="text-white" /></div>
+          <span className="text-sm text-zinc-300">Budgetrest ({aktuellerMonatsname})</span>
+        </div>
+        <span className={`text-sm font-medium tabular-nums ${amountColor(budgetrestSumme)}`}>{eur(budgetrestSumme)}</span>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon, accent, small }) {
   const accentMap = { emerald: "text-emerald-400 bg-emerald-500/10", cyan: "text-cyan-400 bg-cyan-500/10", amber: "text-amber-400 bg-amber-500/10", violet: "text-violet-400 bg-violet-500/10" };
   return (
@@ -1227,22 +1296,7 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
             </div>
           </div>
           <p className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-wide text-zinc-600">Töpfe innerhalb von Trade Republic</p>
-          <div className="space-y-2.5">
-            {virtualAccounts.map((a) => {
-              const val = balances[a.name] || 0;
-              const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
-              const startbetrag = potAllocations[a.name] || 0;
-              return (
-                <div key={a.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <AccountIcon name={a.name} fallbackColor={a.farbe} balance={val} />
-                    <span className="text-sm text-zinc-300">{a.name}{hatStartbetrag ? ` (${eur(startbetrag)})` : ""}</span>
-                  </div>
-                  <span className={`text-sm font-medium tabular-nums ${amountColor(val)}`}>{eur(val)}</span>
-                </div>
-              );
-            })}
-          </div>
+          <ToepfeKarussell virtualAccounts={virtualAccounts} balances={balances} potAllocations={potAllocations} />
         </div>
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-2">
           <h2 className="mb-3 text-sm font-semibold text-zinc-200">Letzte Buchungen</h2>
@@ -1815,6 +1869,10 @@ function getVerfuegbareJahre(transactions) {
 }
 
 const MONATSNAMEN_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const MONATSNAMEN_VOLL = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+// Dieselben Töpfe, die auch den Ausgaberest speisen - Grundlage für die
+// zusätzliche, rein berechnete "Budgetrest"-Anzeige (kein echtes Konto).
+const POTS_BUDGETREST = ["Laden", "E-Liquids", "Lebensmittel", "Freizeit", "Kosmetik", "Abo & ETF", "Puffer"];
 
 function computeJahresverlauf(transactions, jahr) {
   const heute = new Date();
