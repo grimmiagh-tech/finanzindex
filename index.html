@@ -125,7 +125,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.5";
+const APP_VERSION = "2026.6";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
@@ -552,12 +552,12 @@ function Icon({ name, size = 16, className = "" }) {
     check: <><path d="M20 6L9 17l-5-5"/></>,
     chevron: <><path d="M6 9l6 6 6-6"/></>,
     landmark: <><path d="M3 21h18M4 10h16M6 10v11M18 10v11M12 3L3 8h18z"/></>,
-    piggy: <><path d="M19 9a4 4 0 00-4-4 5 5 0 00-4.9 4H8a3 3 0 00-3 3v1l-2 2 2 1v1a3 3 0 003 3h1v2h3v-2h3v2h3v-2.3a5 5 0 002-4V13h1a1 1 0 001-1V9z"/><circle cx="16" cy="11" r="0.5"/></>,
+    piggy: <><rect x="3" y="9" width="15" height="9" rx="4.5"/><circle cx="4.3" cy="13.3" r="2"/><circle cx="3.6" cy="12.8" r="0.3" fill="currentColor" stroke="none"/><circle cx="3.6" cy="13.8" r="0.3" fill="currentColor" stroke="none"/><path d="M13.5 9l1-2.2 2.2 1.4z" fill="currentColor" stroke="none"/><circle cx="7.5" cy="11.8" r="0.5" fill="currentColor" stroke="none"/><path d="M6 18v1.8M15 18v1.8"/><path d="M18 10.3c1.1-.5 1.1-2 0-2.5"/><path d="M12.5 8.6h2.3"/><circle cx="13.6" cy="5" r="1.7"/><path d="M13.6 3.7v2.6"/></>,
     calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1"/></>,
     filter: <><path d="M4 4h16l-6 8v6l-4 2v-8z"/></>,
     wallet: <><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2z"/><path d="M17 12h.01"/><path d="M4 7V5a2 2 0 012-2h9"/></>,
     trend: <><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></>,
-    car: <><path d="M4 16l1.4-4.5A2 2 0 017.3 10h9.4a2 2 0 011.9 1.5L20 16"/><rect x="2.5" y="16" width="19" height="3" rx="1"/><circle cx="7" cy="19.4" r="1.6" fill="currentColor" stroke="none"/><circle cx="17" cy="19.4" r="1.6" fill="currentColor" stroke="none"/></>,
+    car: <><path d="M3 16v-3a1 1 0 011-1h1.5l1.3-2.4A1 1 0 017.7 9h8.6a1 1 0 01.9.6L18.5 12H20a1 1 0 011 1v3"/><path d="M12 9.3v3.2"/><circle cx="7" cy="17" r="2.1"/><circle cx="17" cy="17" r="2.1"/></>,
     sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
     moon: <><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></>,
     chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
@@ -565,11 +565,11 @@ function Icon({ name, size = 16, className = "" }) {
     bolt: <><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></>,
     vape: <><rect x="6" y="10" width="11" height="5" rx="2"/><path d="M17 11.5h1.5a1 1 0 010 2H17"/><path d="M20 6c1 1 1 2 0 3M22 7c1 1 1 2 0 3"/></>,
     cart: <><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 4h2l2.2 11a2 2 0 002 1.7h7a2 2 0 002-1.8L20 8H6.2"/></>,
-    coaster: <><path d="M3 16c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/><rect x="9" y="9" width="4" height="3" rx="1"/></>,
-    lipstick: <><rect x="9" y="13" width="6" height="8" rx="1"/><path d="M9 13l1.5-7h3L15 13z"/><rect x="10" y="3" width="4" height="3" rx="1"/></>,
+    coaster: <><path d="M2 19c2-1.3 4-1.3 6 0s4 1.3 6 0 4-1.3 6 0"/><path d="M12 19V8"/><path d="M6 8a6 6 0 0112 0z"/></>,
+    lipstick: <><circle cx="9" cy="8" r="4.3"/><path d="M7 6.3l3.5 3.4M7.3 8.6l2 2"/><path d="M9 12.3v4"/><path d="M6.3 18h5.4"/><rect x="15.2" y="13.5" width="4" height="7.5" rx="1"/><path d="M15.2 13.5l0.7-3h2.6l0.7 3z"/></>,
     wrench: <><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.8 2.8-2-2z"/></>,
     road: <><path d="M8 21L11 3h2l3 18"/><path d="M12 7v2M12 12v2M12 17v1"/></>,
-    lifering: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v5M12 15v5M4 12h5M15 12h5"/></>,
+    lifering: <><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
