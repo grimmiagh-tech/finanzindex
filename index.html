@@ -125,7 +125,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.3";
+const APP_VERSION = "2026.4";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
@@ -1092,7 +1092,7 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:px-6 md:pb-10">
+      <main className="mx-auto max-w-6xl overflow-x-hidden px-4 pb-28 pt-5 md:px-6 md:pb-10">
         {!gasUrl && (
           <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
             Es ist noch keine Google-Apps-Script-URL hinterlegt. Die App speichert vorerst nur lokal in diesem Browser. Trage die URL unter „Einstellungen" ein, um mit deinem Google Sheet zu synchronisieren.
@@ -1191,10 +1191,10 @@ function ToepfeKarussell({ virtualAccounts, balances, potAllocations }) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {seiten.length > 0 && (
         <>
-          <div ref={scrollRef} onScroll={handleScroll} className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+          <div ref={scrollRef} onScroll={handleScroll} className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
             {seiten.map((gruppe, i) => (
               <div key={i} className="flex w-full shrink-0 snap-center flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-2.5">
                 {gruppe.map((a) => {
@@ -1271,8 +1271,8 @@ function Dashboard({ accounts, balances, realAccounts, virtualAccounts, ingBalan
           <p className="text-[11.5px] leading-relaxed text-cyan-200">Sollte exakt der Trade-Republic-App entsprechen – eine Abweichung zeigt eine fehlende oder falsche Buchung.</p>
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-3">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-5">
+        <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-3">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-200">Konten & Budget-Töpfe</h2>
             <button onClick={onGoBuchen} className="text-xs text-emerald-400 hover:text-emerald-300">+ Neue Buchung</button>
