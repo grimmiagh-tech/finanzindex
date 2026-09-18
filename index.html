@@ -64,6 +64,11 @@
   html.light .text-violet-400 { color:#7c3aed !important; }
 
   html.light input, html.light select, html.light textarea { color-scheme: light; }
+
+  .karussell-seite { background-color: #153c15; }
+  html.light .karussell-seite { background-color: #e8f9e5; border-color: #86efac !important; }
+
+  html.light .bg-rose-500\/5.text-rose-200 { background-color:#fef2f2 !important; color:#9f1239 !important; border-color:#fca5a5 !important; }
 </style>
 </head>
 <body>
@@ -125,7 +130,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.11";
+const APP_VERSION = "2026.12";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
@@ -1437,7 +1442,7 @@ function ToepfeKarussell({ virtualAccounts, balances, potAllocations }) {
         <>
           <div ref={scrollRef} onScroll={handleScroll} className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
             {seiten.map((gruppe, i) => (
-              <div key={i} className="flex w-full shrink-0 snap-center flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-2.5">
+              <div key={i} className="karussell-seite flex w-full shrink-0 snap-center flex-col gap-2 rounded-2xl border border-emerald-800/40 p-2.5">
                 {gruppe.map((a) => {
                   const val = balances[a.name] || 0;
                   const hatStartbetrag = !POTS_OHNE_STARTBETRAG.includes(a.name) && (potAllocations[a.name] || 0) > 0;
