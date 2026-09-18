@@ -125,10 +125,63 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.8";
+const APP_VERSION = "2026.9";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
+
+/* ============================== Sicherheitssperre (Fingerabdruck/PIN) ============================== */
+const LOCK_PIN_HASH_KEY = "finanzindex_lock_pin_hash";
+const LOCK_PIN_SALT_KEY = "finanzindex_lock_pin_salt";
+const LOCK_WEBAUTHN_KEY = "finanzindex_lock_webauthn_id";
+
+function isTouchDevice() {
+  try { return ("ontouchstart" in window) || navigator.maxTouchPoints > 0; } catch (e) { return false; }
+}
+
+function randomHex(byteLen) {
+  const arr = new Uint8Array(byteLen);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashPin(pin, salt) {
+  const data = new TextEncoder().encode(salt + ":" + pin);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64) { return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); }
+
+async function webauthnRegister() {
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const userId = crypto.getRandomValues(new Uint8Array(16));
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      challenge,
+      rp: { name: "Finanzindex" },
+      user: { id: userId, name: "nutzer", displayName: "Nutzer" },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+      timeout: 60000,
+    },
+  });
+  return bufToB64(cred.rawId);
+}
+
+async function webauthnVerify(credentialIdB64) {
+  await navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials: [{ type: "public-key", id: b64ToBuf(credentialIdB64) }],
+      userVerification: "required",
+      timeout: 60000,
+    },
+  });
+  return true; // wirft bei Fehlschlag/Abbruch, kommt sonst nur bei Erfolg hier an
+}
+
 
 function loadQueue() {
   try {
@@ -543,6 +596,7 @@ function Icon({ name, size = 16, className = "" }) {
     pencil: <><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></>,
     trash: <><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></>,
     x: <><path d="M18 6L6 18M6 6l12 12"/></>,
+    lock: <><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></>,
     arrowDown: <><circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 13l3 3 3-3"/></>,
     arrowUp: <><circle cx="12" cy="12" r="9"/><path d="M12 16V8M9 11l3-3 3 3"/></>,
     arrowLR: <><path d="M17 2l4 4-4 4M3 6h18M7 22l-4-4 4-4M21 18H3"/></>,
@@ -650,8 +704,182 @@ function SyncIndicator({ status, lastSync, onClick }) {
 
 /* ============================== Hauptkomponente ============================== */
 
+function PinDots({ value, length = 4, error }) {
+  return (
+    <div className="flex justify-center gap-3">
+      {Array.from({ length }).map((_, i) => (
+        <div key={i} className={`h-3.5 w-3.5 rounded-full border ${error ? "border-rose-500" : "border-zinc-600"} ${i < value.length ? (error ? "bg-rose-500" : "bg-emerald-400 border-emerald-400") : ""}`} />
+      ))}
+    </div>
+  );
+}
+
+function Numpad({ onDigit, onDelete }) {
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].map((k, i) =>
+        k === "" ? <div key={i} /> : (
+          <button
+            key={i}
+            onClick={() => (k === "del" ? onDelete() : onDigit(k))}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800/60 text-lg text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600"
+          >
+            {k === "del" ? <Icon name="x" size={18} /> : k}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function LockScreen({ onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [tried, setTried] = useState(false);
+  const hasWebauthn = !!localStorage.getItem(LOCK_WEBAUTHN_KEY);
+
+  const tryWebauthn = useCallback(async () => {
+    try {
+      await webauthnVerify(localStorage.getItem(LOCK_WEBAUTHN_KEY));
+      onUnlock();
+    } catch (e) { setTried(true); }
+  }, [onUnlock]);
+
+  useEffect(() => { if (hasWebauthn) tryWebauthn(); }, []);
+
+  const checkPin = async (value) => {
+    const salt = localStorage.getItem(LOCK_PIN_SALT_KEY);
+    const stored = localStorage.getItem(LOCK_PIN_HASH_KEY);
+    const hash = await hashPin(value, salt);
+    if (hash === stored) { onUnlock(); }
+    else { setError(true); setTimeout(() => { setPin(""); setError(false); }, 500); }
+  };
+
+  const onDigit = (d) => {
+    if (pin.length >= 4) return;
+    const next = pin + d;
+    setPin(next);
+    if (next.length === 4) checkPin(next);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-zinc-950 px-6">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15">
+        <Icon name="lock" size={28} className="text-emerald-400" />
+      </div>
+      <p className="text-base font-semibold text-zinc-200">Finanzindex ist gesperrt</p>
+      {hasWebauthn && (
+        <button onClick={tryWebauthn} className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-5 py-2.5 text-sm font-medium text-emerald-400">
+          Mit Fingerabdruck entsperren
+        </button>
+      )}
+      {tried && hasWebauthn && <p className="text-xs text-amber-300">Fingerabdruck fehlgeschlagen - bitte PIN verwenden.</p>}
+      <p className="text-xs text-zinc-500">{hasWebauthn ? "oder PIN eingeben" : "PIN eingeben"}</p>
+      <PinDots value={pin} error={error} />
+      <Numpad onDigit={onDigit} onDelete={() => setPin((p) => p.slice(0, -1))} />
+    </div>
+  );
+}
+
+function LockSetup({ onDone, onCancel }) {
+  const [step, setStep] = useState("pin1"); // pin1 -> pin2 -> webauthn -> done
+  const [pin1, setPin1] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [error, setError] = useState(false);
+  const [webauthnStatus, setWebauthnStatus] = useState(null);
+
+  const onDigit = (d) => {
+    if (step === "pin1") {
+      if (pin1.length >= 4) return;
+      const next = pin1 + d;
+      setPin1(next);
+      if (next.length === 4) setStep("pin2");
+    } else if (step === "pin2") {
+      if (pin2.length >= 4) return;
+      const next = pin2 + d;
+      setPin2(next);
+      if (next.length === 4) {
+        if (next === pin1) {
+          (async () => {
+            const salt = randomHex(16);
+            const hash = await hashPin(pin1, salt);
+            localStorage.setItem(LOCK_PIN_SALT_KEY, salt);
+            localStorage.setItem(LOCK_PIN_HASH_KEY, hash);
+            setStep("webauthn");
+          })();
+        } else {
+          setError(true);
+          setTimeout(() => { setPin1(""); setPin2(""); setError(false); setStep("pin1"); }, 600);
+        }
+      }
+    }
+  };
+  const onDelete = () => {
+    if (step === "pin1") setPin1((p) => p.slice(0, -1));
+    else setPin2((p) => p.slice(0, -1));
+  };
+
+  const setupWebauthn = async () => {
+    try {
+      const id = await webauthnRegister();
+      localStorage.setItem(LOCK_WEBAUTHN_KEY, id);
+      setWebauthnStatus("ok");
+    } catch (e) { setWebauthnStatus("error"); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-zinc-950 px-6">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15">
+        <Icon name="lock" size={28} className="text-emerald-400" />
+      </div>
+      {(step === "pin1" || step === "pin2") && (
+        <>
+          <p className="text-base font-semibold text-zinc-200">Sicherheitssperre einrichten</p>
+          <p className="max-w-[240px] text-center text-[12.5px] text-zinc-500">Schützt die App auf diesem Gerät vor fremdem Zugriff.</p>
+          <p className="text-xs text-zinc-500">{step === "pin1" ? "4-stelligen PIN festlegen" : "PIN zur Bestätigung erneut eingeben"}</p>
+          <PinDots value={step === "pin1" ? pin1 : pin2} error={error} />
+          <Numpad onDigit={onDigit} onDelete={onDelete} />
+          <button onClick={onCancel} className="text-xs text-zinc-600">Abbrechen</button>
+        </>
+      )}
+      {step === "webauthn" && (
+        <>
+          <p className="text-base font-semibold text-zinc-200">PIN gespeichert</p>
+          <p className="max-w-[240px] text-center text-[12.5px] text-zinc-500">Zusätzlich Fingerabdruck/Gesichtserkennung für schnelleres Entsperren einrichten?</p>
+          {webauthnStatus === "ok" && <p className="text-sm text-emerald-400">Eingerichtet.</p>}
+          {webauthnStatus === "error" && <p className="text-sm text-amber-300">Fehlgeschlagen oder abgebrochen - PIN funktioniert trotzdem.</p>}
+          {webauthnStatus !== "ok" && (
+            <button onClick={setupWebauthn} className="rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-emerald-950">Fingerabdruck einrichten</button>
+          )}
+          <button onClick={onDone} className="mt-2 text-sm text-zinc-400">{webauthnStatus === "ok" ? "Fertig" : "Überspringen"}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const initial = loadLocal();
+  const [lockConfigured, setLockConfigured] = useState(() => !!localStorage.getItem(LOCK_PIN_HASH_KEY));
+  const [locked, setLocked] = useState(() => isTouchDevice() && !!localStorage.getItem(LOCK_PIN_HASH_KEY));
+  const [showLockSetup, setShowLockSetup] = useState(false);
+  const hiddenAtRef = useRef(null);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+      } else if (document.visibilityState === "visible") {
+        if (hiddenAtRef.current && lockConfigured && isTouchDevice()) {
+          if (Date.now() - hiddenAtRef.current >= 3 * 60 * 1000) setLocked(true);
+        }
+        hiddenAtRef.current = null;
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [lockConfigured]);
+
   const [accounts, setAccounts] = useState(initial?.accounts || []);
   const [categories, setCategories] = useState(initial?.categories || []);
   const [transactions, setTransactions] = useState(initial?.transactions || []);
@@ -1064,6 +1292,9 @@ function App() {
   const secondaryTabs = tabs.filter((t) => !t.primary);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
+  if (showLockSetup) return <LockSetup onDone={() => { setLockConfigured(true); setShowLockSetup(false); }} onCancel={() => setShowLockSetup(false)} />;
+
   return (
     <div className="min-h-[100dvh] w-full bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-800 bg-zinc-950/95 px-4 py-3 backdrop-blur md:px-6">
@@ -1130,7 +1361,9 @@ function App() {
           <Auswertung transactions={transactions} accounts={accounts} categories={categories} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
         )}
         {activeTab === "einstellungen" && (
-          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount} />
+          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount}
+            lockConfigured={lockConfigured} onSetupLock={() => setShowLockSetup(true)}
+            onDisableLock={() => { localStorage.removeItem(LOCK_PIN_HASH_KEY); localStorage.removeItem(LOCK_PIN_SALT_KEY); localStorage.removeItem(LOCK_WEBAUTHN_KEY); setLockConfigured(false); }} />
         )}
       </main>
 
@@ -2044,7 +2277,7 @@ function Auswertung({ transactions, accounts, categories, kontoauszuege }) {
 
 /* ============================== Einstellungen ============================== */
 
-function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount }) {
+function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount, lockConfigured, onSetupLock, onDisableLock }) {
   const [value, setValue] = useState(gasUrl);
   return (
     <div className="mx-auto max-w-xl space-y-5">
@@ -2089,6 +2322,26 @@ function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahr
         </div>
         <Icon name="chevron" size={16} className="shrink-0 -rotate-90 text-zinc-500" />
       </a>
+      {isTouchDevice() && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="text-sm font-medium text-zinc-200">Sicherheitssperre (Fingerabdruck/PIN)</p>
+          <p className="mt-1 text-[11.5px] text-zinc-500">
+            {lockConfigured
+              ? "Aktiv auf diesem Gerät. Sperrt beim Start und nach 3 Minuten im Hintergrund."
+              : "Schützt die App auf diesem Gerät vor fremdem Zugriff. Auf dem PC nicht nötig, da dort nicht angeboten."}
+          </p>
+          <div className="mt-3 flex gap-2">
+            {lockConfigured ? (
+              <>
+                <button onClick={onSetupLock} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-600">PIN ändern</button>
+                <button onClick={onDisableLock} className="rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10">Deaktivieren</button>
+              </>
+            ) : (
+              <button onClick={onSetupLock} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-medium text-emerald-950">Einrichten</button>
+            )}
+          </div>
+        </div>
+      )}
       <p className="pt-1 text-center text-[11px] text-zinc-600">Version: {APP_VERSION}</p>
     </div>
   );
