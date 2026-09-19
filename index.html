@@ -65,8 +65,8 @@
 
   html.light input, html.light select, html.light textarea { color-scheme: light; }
 
-  .karussell-seite { background-color: rgba(6, 182, 212, 0.05); }
-  html.light .karussell-seite { background-color: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.25) !important; }
+  .karussell-seite { background-color: rgba(6, 182, 212, 0.14); border-color: rgba(6, 182, 212, 0.5) !important; }
+  html.light .karussell-seite { background-color: rgba(6, 182, 212, 0.12); border-color: rgba(6, 182, 212, 0.4) !important; }
 
   html.light .bg-rose-500\/5.text-rose-200 { background-color:#fef2f2 !important; color:#9f1239 !important; border-color:#fca5a5 !important; }
 </style>
@@ -130,7 +130,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.13";
+const APP_VERSION = "2026.15";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
@@ -185,6 +185,23 @@ async function webauthnVerify(credentialIdB64) {
     },
   });
   return true; // wirft bei Fehlschlag/Abbruch, kommt sonst nur bei Erfolg hier an
+}
+
+// Merkt sich den Zeitpunkt der letzten erfolgreichen Entsperrung NUR für die
+// Dauer dieses Browser-Tabs (sessionStorage - verschwindet automatisch beim
+// echten Schließen). Damit löst z. B. die Pull-to-Refresh-Geste (kompletter
+// Seiten-Neuladen, aber derselbe Tab) nicht jedes Mal erneut die PIN-Abfrage
+// aus, solange die letzte Entsperrung noch keine 3 Minuten her ist -
+// dieselbe Karenzzeit wie beim Sperren nach Zeit im Hintergrund.
+const UNLOCK_GRACE_MS = 3 * 60 * 1000;
+function markUnlocked() {
+  try { sessionStorage.setItem("finanzindex_unlock_ts", String(Date.now())); } catch (e) {}
+}
+function wasRecentlyUnlocked() {
+  try {
+    const ts = Number(sessionStorage.getItem("finanzindex_unlock_ts") || 0);
+    return ts > 0 && (Date.now() - ts) < UNLOCK_GRACE_MS;
+  } catch (e) { return false; }
 }
 
 
@@ -866,7 +883,7 @@ function LockSetup({ onDone, onCancel }) {
 function App() {
   const initial = loadLocal();
   const [lockConfigured, setLockConfigured] = useState(() => !!localStorage.getItem(LOCK_PIN_HASH_KEY));
-  const [locked, setLocked] = useState(() => isTouchDevice() && !!localStorage.getItem(LOCK_PIN_HASH_KEY));
+  const [locked, setLocked] = useState(() => isTouchDevice() && !!localStorage.getItem(LOCK_PIN_HASH_KEY) && !wasRecentlyUnlocked());
   const [showLockSetup, setShowLockSetup] = useState(false);
   const hiddenAtRef = useRef(null);
 
@@ -877,6 +894,7 @@ function App() {
       } else if (document.visibilityState === "visible") {
         if (hiddenAtRef.current && lockConfigured && isTouchDevice()) {
           if (Date.now() - hiddenAtRef.current >= 3 * 60 * 1000) setLocked(true);
+          else markUnlocked(); // Zeitstempel auffrischen, solange innerhalb der Karenzzeit zurückgekehrt
         }
         hiddenAtRef.current = null;
       }
@@ -1297,8 +1315,8 @@ function App() {
   const secondaryTabs = tabs.filter((t) => !t.primary);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
-  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
-  if (showLockSetup) return <LockSetup onDone={() => { setLockConfigured(true); setShowLockSetup(false); }} onCancel={() => setShowLockSetup(false)} />;
+  if (locked) return <LockScreen onUnlock={() => { markUnlocked(); setLocked(false); }} />;
+  if (showLockSetup) return <LockSetup onDone={() => { markUnlocked(); setLockConfigured(true); setShowLockSetup(false); }} onCancel={() => setShowLockSetup(false)} />;
 
   return (
     <div className="min-h-[100dvh] w-full bg-zinc-950 text-zinc-100">
