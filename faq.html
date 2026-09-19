@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Finanzindex – FAQ</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#09090b" />
+<style>
+  * { box-sizing: border-box; }
+  body { background:#09090b; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#e4e4e7; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:4px; }
+
+  html.light body { background:#f4f4f3; color:#18181b; }
+  html.light .card { background:#ffffff !important; border-color:#e4e4e7 !important; }
+  html.light .cat { color:#71717a !important; }
+  html.light .q { color:#18181b !important; }
+  html.light .a { color:#3f3f46 !important; }
+  html.light .header { background:#f4f4f3f2 !important; border-color:#e4e4e7 !important; }
+  html.light .backbtn { border-color:#d4d4d8 !important; color:#3f3f46 !important; }
+  html.light .themebtn { border-color:#d4d4d8 !important; color:#3f3f46 !important; }
+
+  .header { position: sticky; top:0; z-index:10; background:#09090bf2; backdrop-filter: blur(8px); border-bottom:1px solid #27272a; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  .backbtn, .themebtn { border:1px solid #3f3f46; border-radius:8px; padding:6px 10px; font-size:12.5px; color:#d4d4d8; background:transparent; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+  main { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color:#71717a; font-size:13px; margin: 0 0 28px; }
+  .cat { color:#71717a; font-size:10.5px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin: 26px 0 10px; }
+  .cat:first-of-type { margin-top: 0; }
+  details.card { background:#18181b; border:1px solid #27272a; border-radius:12px; padding:13px 15px; margin-bottom:8px; }
+  summary.q { font-size:14px; font-weight:500; cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  summary.q::-webkit-details-marker { display:none; }
+  summary.q::after { content:"+"; color:#71717a; font-size:16px; flex-shrink:0; }
+  details[open] summary.q::after { content:"–"; }
+  p.a { color:#a1a1aa; font-size:13px; line-height:1.65; margin: 10px 0 0; }
+  code { background:#27272a; padding:1px 5px; border-radius:4px; font-size:12px; }
+  html.light code { background:#e4e4e7; }
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="backbtn" href="index.html">← Zur App</a>
+  <button class="themebtn" id="themeToggle">Design</button>
+</div>
+<main>
+  <h1>Finanzindex – Fragen &amp; technischer Überblick</h1>
+  <p class="sub">Nachschlagewerk für Buchungslogik, Automatisierung, Sicherung und den technischen Aufbau der App.</p>
+
+  <p class="cat">Buchungen &amp; Verteilung</p>
+
+  <details class="card" open>
+    <summary class="q">Wie wird die monatliche Zinsgutschrift von Trade Republic gebucht?</summary>
+    <p class="a">Einnahme buchen: Quelle "extern", Ziel "Transit", Betrag = gesamte Zinsgutschrift. Danach die gewünschte Verteilung als einzelne Umbuchungen von Transit zu den Zielkonten vornehmen (zum Beispiel Transit → Model 3, Transit → Rücklage).</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie werden ungeplante Sondereinnahmen gebucht?</summary>
+    <p class="a">Direkt als Einnahme auf das Konto buchen, für das das Geld gedacht ist (Quelle "extern" oder "arbeitgeber").</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist "Ausgaberest" und wie wird er weiterverwendet?</summary>
+    <p class="a">Am Monatsende werden Laden, E-Liquids, Lebensmittel, Freizeit, Kosmetik, Abo &amp; ETF und Puffer automatisch auf 0 zurückgesetzt. Guthaben wandert zu Ausgaberest, Überzüge werden von dort ausgeglichen – so entsteht dort automatisch der echte Netto-Wert. Das gesammelte Geld kann jederzeit per Umbuchung verteilt werden (zum Beispiel Ausgaberest → Model 3 oder Ausgaberest → Jahres Rückstellung).</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist "Budgetrest" und woraus setzt er sich zusammen?</summary>
+    <p class="a">Die Summe der aktuellen Kontostände von Laden, E-Liquids, Lebensmittel, Freizeit, Kosmetik, Abo &amp; ETF und Puffer – also derselben sieben Töpfe, die auch den Ausgaberest speisen. Er zeigt live, wie viel von deinem laufenden Monatsbudget in diesen Töpfen zusammengenommen noch übrig ist, während der Monat noch läuft.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Worin unterscheiden sich Budgetrest und Ausgaberest?</summary>
+    <p class="a">Budgetrest ist eine reine Anzeige, kein echtes Konto: Er wird bei jedem Öffnen der App live aus den sieben Töpfen neu zusammengerechnet und zeigt "was ist gerade, während der Monat noch läuft, in diesen Töpfen übrig". Ausgaberest dagegen ist ein echtes Konto mit eigenem, dauerhaftem Kontostand, das erst am Monatsende durch den automatischen Ausgleich befüllt wird und "was am Ende des Monats übrig geblieben ist" dauerhaft festhält. Solange der Monat läuft, ist Ausgaberest 0 (oder der Rest vom Vormonat, falls noch nicht verteilt) - Budgetrest ändert sich dagegen laufend mit jeder Buchung.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie viel muss manuell von ING auf Trade Republic überwiesen werden?</summary>
+    <p class="a">Tab "Fixkosten" → Karte "Gehaltsverteilung" zeigt den Betrag, der auf ING bleiben soll, und den Betrag, der auf Trade Republic überwiesen werden muss – berechnet aus den aktuell gültigen Fixkosten-Positionen.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum sollte "Trade Republic gesamt" im Dashboard immer mit der echten App übereinstimmen?</summary>
+    <p class="a">Dieser Wert entsteht rein rechnerisch aus den erfassten Buchungen. Eine Abweichung zeigt zuverlässig: eine Buchung fehlt oder ist falsch erfasst – nicht, dass die Berechnung selbst falsch wäre.</p>
+  </details>
+
+  <p class="cat">Automatisierung</p>
+
+  <details class="card">
+    <summary class="q">Was passiert automatisch am 1. jeden Monats?</summary>
+    <p class="a">Zuerst wird der Ausgaberest-Ausgleich für den Vormonat gebucht, danach die neuen Fixkosten und die Besoldung für den aktuellen Monat, danach ein automatisches Backup erstellt. Läuft serverseitig über Google Apps Script, unabhängig davon, ob die App-Seite geöffnet ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie lässt sich der Monatswechsel vorab gefahrlos testen?</summary>
+    <p class="a">Im Apps-Script-Editor die Funktion <code>testAlsMonatsanfangOktober</code> (oder <code>testAlsMonatsanfangNovember</code>) ausführen. Das erstellt automatisch eine komplette Testkopie des Sheets und lässt das Original unangetastet.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was passiert, wenn die Automatisierung fehlschlägt?</summary>
+    <p class="a">Es wird automatisch eine E-Mail an die im Skript hinterlegte Adresse verschickt, inklusive Fehlermeldung und Protokoll der bereits erledigten Schritte.</p>
+  </details>
+
+  <p class="cat">Sicherung (Backup)</p>
+
+  <details class="card">
+    <summary class="q">Muss selbst etwas für Backups getan werden?</summary>
+    <p class="a">Nein. Sobald <code>installTrigger</code> einmal ausgeführt wurde, legt das Skript automatisch jeden Monat eine datierte Kopie des kompletten Sheets in Google Drive ab (Name: "Finanzindex Backup JJJJ-MM-TT").</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie lässt sich sofort eine Sicherung erstellen, ohne zu warten?</summary>
+    <p class="a">Zwei Wege: (1) In Google Sheets oben "Datei" → "Kopie erstellen" – sofort, ganz ohne Skript. (2) Im Apps-Script-Editor die Funktion <code>backupJetzt</code> auswählen und ausführen – erstellt dieselbe Art von Backup wie die automatische, nur sofort auf Wunsch.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie wird im Notfall aus einer Sicherung wiederhergestellt?</summary>
+    <p class="a">Bei kleineren, kürzlichen Fehlern reicht oft "Datei" → "Versionsverlauf" direkt in Google Sheets, ganz ohne Backup-Datei. Bei größeren Problemen: die Backup-Datei in Drive öffnen und die benötigten Werte manuell zurück ins Original-Sheet übertragen.</p>
+  </details>
+
+  <p class="cat">Kontoauszug</p>
+
+  <details class="card">
+    <summary class="q">Was ist der Kontoauszug und wann entsteht er?</summary>
+    <p class="a">Ein fester, unveränderlicher PDF-Schnappschuss des abgelaufenen Monats – anders als das Sheet, das sich laufend weiter verändert. Er entsteht automatisch als Teil des monatlichen Ablaufs: Ausgaberest-Ausgleich → Kontoauszug → neue Fixkosten → Backup. Läuft also ebenfalls am 1. jeden Monats zwischen 1 und 2 Uhr, sobald <code>installTrigger</code> eingerichtet ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was steht genau im Kontoauszug?</summary>
+    <p class="a">Oben die Gesamtsummen (Einnahmen, Ausgaben, Netto), danach je Konto der Anfangs- und Endsaldo sowie die Veränderung, danach alle Einzelbuchungen des Monats chronologisch – inklusive der automatischen Ausgaberest-Ausgleichsbuchungen, die noch im alten Monat datiert sind.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wo wird der Kontoauszug gespeichert und wie sehe ich ihn mir an?</summary>
+    <p class="a">Als PDF im Drive-Ordner "Finanzindex Kontoauszüge" (wird beim ersten Mal automatisch angelegt), neben dem Sheet. In der App im Tab "Auswertung" erscheint unten eine Liste aller bisher erstellten Kontoauszüge zum direkten Antippen und Ansehen – ohne selbst etwas herunterzuladen, da die Datei ja bereits in Drive liegt.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie lässt sich sofort ein Kontoauszug erstellen, ohne zu warten?</summary>
+    <p class="a">Im Apps-Script-Editor die Funktion <code>kontoauszugJetzt</code> auswählen und ausführen – erstellt den Kontoauszug für den Vormonat sofort, unabhängig vom automatischen Monatswechsel.</p>
+  </details>
+
+  <p class="cat">Sicherheit</p>
+
+  <details class="card">
+    <summary class="q">GitHub ist öffentlich - kann jemand Fremdes meine echten Daten sehen?</summary>
+    <p class="a">Nein, nicht allein dadurch. Öffentlich einsehbar ist nur der Programmcode (<code>index.html</code>, <code>faq.html</code>) - eine leere Hülle ganz ohne echte Zahlen. Die echten Daten kommen erst über die im Browser hinterlegte Apps-Script-URL, die nirgendwo im Code steht, sondern ausschließlich lokal auf dem jeweiligen Gerät gespeichert ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Kann jemand über GitHub meine Datei verändern, weil sie öffentlich lesbar ist?</summary>
+    <p class="a">Nein. Lesen und Verändern sind bei GitHub getrennte Rechte. Ändern kann ausschließlich der Besitzer des GitHub-Kontos (oder wer ausdrücklich mit Schreibrecht eingeladen wurde) - unabhängig davon, ob die Datei öffentlich sichtbar ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist der "API-Schlüssel" in den Einstellungen und wofür ist er gut?</summary>
+    <p class="a">Ein zusätzliches, zufällig erzeugtes Kennwort, das im Skript hinterlegt ist und bei jeder Anfrage zusätzlich zur Apps-Script-URL mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet das Skript keine Anfrage - selbst wenn die URL allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum sind URL und API-Schlüssel in den Einstellungen wie ein Passwort maskiert?</summary>
+    <p class="a">Damit die beiden Werte nicht schon durch einen kurzen Blick über die Schulter sichtbar sind. Ist auf diesem Gerät eine Sicherheitssperre eingerichtet, verlangt "Anzeigen" zusätzlich eine erneute Bestätigung per PIN oder Fingerabdruck, bevor die Werte im Klartext erscheinen - auch innerhalb einer bereits entsperrten App-Sitzung.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Ist die FAQ-Seite (diese Seite hier) auch öffentlich?</summary>
+    <p class="a">Ja - anders als die eigentliche App hat diese FAQ-Seite keine eigene Sperre und ist für jeden mit der passenden Adresse lesbar. Da hier aber keinerlei echte Finanzdaten stehen, nur allgemeine Erklärungen zur Funktionsweise, ist das unbedenklich.</p>
+  </details>
+
+  <p class="cat">Bedienung</p>
+
+  <details class="card">
+    <summary class="q">Was bedeutet der Betrag in Klammern hinter einem Topfnamen?</summary>
+    <p class="a">Der aktuell gültige monatliche Fixkosten-Betrag für diesen Topf. Transit und Puffer zeigen keinen, da sie anders funktionieren (mehrere Quellen beziehungsweise reiner Reservetopf).</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Kann ich Fixkosten-Positionen direkt in der App bearbeiten?</summary>
+    <p class="a">Ja. Anlegen, Bearbeiten und Löschen im Tab "Fixkosten" schreibt direkt ins Sheet, genau wie bei normalen Buchungen – inklusive automatischem Nachholen bei einer Verbindungsstörung. Voraussetzung dafür ist eine eindeutige "ID"-Spalte in Fixkosten_Plan (einmalig über die Funktion <code>fixkostenIdsErgaenzen</code> im Apps-Script-Editor eingerichtet).</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum wird ein Betrag rot angezeigt?</summary>
+    <p class="a">Rot zeigt einen negativen, überzogenen Kontostand an.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wo befinden sich Fixkosten, Prognose, Auswertung und Einstellungen auf dem Smartphone?</summary>
+    <p class="a">Über den Button "Mehr" in der unteren Leiste.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie wird zwischen hellem und dunklem Design gewechselt?</summary>
+    <p class="a">Über das Sonne-/Mond-Symbol oben rechts im Header der App.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was bedeutet die Zeitangabe neben dem Sync-Symbol (z. B. "vor 2 Min")?</summary>
+    <p class="a">Das ist der Zeitpunkt der letzten erfolgreich bestätigten Synchronisierung mit dem Google Sheet, keine Live-Uhr. Während gerade synchronisiert wird, steht dort "läuft…", bei einem Fehlschlag "Fehler". Ein Antippen des Symbols stößt jederzeit eine erneute Synchronisierung an.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum dauert die Synchronisierung auf dem Smartphone manchmal sehr lange?</summary>
+    <p class="a">Die Oberfläche zeigt sofort den zuletzt gespeicherten Stand aus einem lokalen Zwischenspeicher an – die Zahlen erscheinen also unmittelbar. Im Hintergrund läuft parallel die eigentliche Verbindung zu Google Apps Script, die bei schwachem Mobilfunkempfang deutlich länger dauern kann, da die Antwort dabei technisch über einen zusätzlichen Zwischenschritt (eine Weiterleitung) ausgeliefert wird. Das ist eine bekannte Einschränkung von Google Apps Script bei mobilen Verbindungen, keine Fehlfunktion der App. Die App bleibt währenddessen normal bedienbar.</p>
+  </details>
+
+  <p class="cat">Technischer Überblick</p>
+
+  <details class="card">
+    <summary class="q">Wo liegen die Daten wirklich?</summary>
+    <p class="a">Ausschließlich im verknüpften Google Sheet (Blätter: Konten, Kategorien, Fixkosten_Plan, Transaktionen, Einstellungen). Das Sheet ist die einzige echte Datenquelle.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist die Webseite (index.html) eigentlich?</summary>
+    <p class="a">Eine reine Oberfläche ohne eigene Datenspeicherung. Sie liegt bei GitHub Pages, lädt beim Öffnen React, Chart.js und weitere Bausteine live aus dem Internet und ruft anschließend die aktuellen Daten aus dem Google Sheet ab.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist das Google Apps Script und wo liegt es?</summary>
+    <p class="a">Ein Programm, direkt an das Sheet gebunden (Erweiterungen → Apps Script). Es übernimmt zwei Aufgaben: Als Web-App beantwortet es die Anfragen der Seite (Daten lesen/schreiben), und unabhängig davon läuft es einmal im Monat automatisch (Ausgaberest, Fixkosten, Backup) – auch wenn die Seite nie geöffnet wird.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie hängen GitHub, die App und das Sheet zusammen?</summary>
+    <p class="a">GitHub Pages (Ort für den Programmcode) → Web-App-URL → Google Apps Script → liest und schreibt im Google Sheet. Bei einer Weiterentwicklung der App wird eine neue <code>index.html</code> und/oder <code>.gs</code>-Datei bereitgestellt, die die bisherige Version ersetzt – das Sheet mit den eigenen Daten bleibt davon immer unberührt.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was passiert ohne Internetverbindung?</summary>
+    <p class="a">Es wird der zuletzt geladene Stand aus einem lokalen Zwischenspeicher im jeweiligen Browser angezeigt. Neue Buchungen können ohne Internetverbindung nicht gespeichert werden, da nichts ohne Verbindung ins Sheet geschrieben werden kann.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum wurden Buchungsdaten früher manchmal einen Tag zu früh angezeigt?</summary>
+    <p class="a">Google Apps Script rechnete Datumswerte beim Verpacken in die Antwort automatisch in Weltzeit (UTC) um, wodurch ein deutsches Datum um einen Tag zurückrutschen konnte. Behoben, indem Apps Script Datumswerte seitdem als eindeutigen Text (z. B. "2026-09-16") statt als Zeitwert verschickt. Die eigentlichen Buchungen im Sheet waren davon nie betroffen, nur die Anzeige in der App nach dem Laden.</p>
+  </details>
+</main>
+<script>
+  try {
+    if (localStorage.getItem('finanzindex_theme') === 'light') document.documentElement.classList.add('light');
+  } catch (e) {}
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    const isLight = document.documentElement.classList.toggle('light');
+    try { localStorage.setItem('finanzindex_theme', isLight ? 'light' : 'dark'); } catch (e) {}
+  });
+</script>
+</body>
+</html>
