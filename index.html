@@ -130,7 +130,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.19";
+const APP_VERSION = "2026.20";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const API_KEY_STORAGE = "finanzindex_api_key";
@@ -760,7 +760,7 @@ function Numpad({ onDigit, onDelete }) {
   );
 }
 
-function LockScreen({ onUnlock }) {
+function LockScreen({ onUnlock, onCancel, title = "Finanzindex ist gesperrt" }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [tried, setTried] = useState(false);
@@ -795,7 +795,7 @@ function LockScreen({ onUnlock }) {
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15">
         <Icon name="lock" size={28} className="text-emerald-400" />
       </div>
-      <p className="text-base font-semibold text-zinc-200">Finanzindex ist gesperrt</p>
+      <p className="text-base font-semibold text-zinc-200">{title}</p>
       {hasWebauthn && (
         <button onClick={tryWebauthn} className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-5 py-2.5 text-sm font-medium text-emerald-400">
           Mit Fingerabdruck entsperren
@@ -805,6 +805,7 @@ function LockScreen({ onUnlock }) {
       <p className="text-xs text-zinc-500">{hasWebauthn ? "oder PIN eingeben" : "PIN eingeben"}</p>
       <PinDots value={pin} error={error} />
       <Numpad onDigit={onDigit} onDelete={() => setPin((p) => p.slice(0, -1))} />
+      {onCancel && <button onClick={onCancel} className="text-xs text-zinc-600">Abbrechen</button>}
     </div>
   );
 }
@@ -2385,7 +2386,25 @@ function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloa
   const [value, setValue] = useState(gasUrl);
   const [keyValue, setKeyValue] = useState(apiKey);
   const [showSecrets, setShowSecrets] = useState(false);
+  const [confirmReveal, setConfirmReveal] = useState(false);
   const secretType = showSecrets ? "text" : "password";
+
+  const handleToggleSecrets = () => {
+    if (showSecrets) { setShowSecrets(false); return; }
+    if (lockConfigured) setConfirmReveal(true);
+    else setShowSecrets(true); // keine Sperre auf diesem Gerät eingerichtet - nichts zum Bestätigen
+  };
+
+  if (confirmReveal) {
+    return (
+      <LockScreen
+        title="Zum Anzeigen bestätigen"
+        onUnlock={() => { setShowSecrets(true); setConfirmReveal(false); }}
+        onCancel={() => setConfirmReveal(false)}
+      />
+    );
+  }
+
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <h2 className="text-base font-semibold text-zinc-200">Einstellungen</h2>
@@ -2397,7 +2416,7 @@ function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloa
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-medium text-zinc-200">Verbindung</p>
-          <button onClick={() => setShowSecrets((v) => !v)} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300">
+          <button onClick={handleToggleSecrets} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300">
             <Icon name={showSecrets ? "eyeOff" : "eye"} size={13} />{showSecrets ? "Verbergen" : "Anzeigen"}
           </button>
         </div>
@@ -2464,7 +2483,7 @@ function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloa
         <p className="text-sm font-semibold text-zinc-200">Finanzindex</p>
         <p className="mt-0.5 text-[11px] font-medium tracking-wide text-zinc-600">Version {APP_VERSION}</p>
         <div className="mx-auto my-3.5 h-px w-full max-w-[240px] bg-zinc-800" />
-        <p className="text-[11px] text-zinc-500">Konzeption &amp; Design: <span className="text-zinc-400">Andreas Grimm-Hoffmann</span></p>
+        <p className="text-[11px] text-zinc-500">Konzeption &amp; Design: <span className="text-zinc-400">A.G.-H.</span></p>
         <p className="text-[11px] text-zinc-500">Technische Umsetzung: <span className="text-zinc-400">Claude (Anthropic)</span></p>
       </div>
     </div>
