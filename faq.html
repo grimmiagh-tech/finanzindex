@@ -144,6 +144,11 @@
   <p class="cat">Sicherheit</p>
 
   <details class="card">
+    <summary class="q">Was bedeutet "X Geräte online" oben im Header?</summary>
+    <p class="a">Eine reine Kontrollanzeige. Jedes geöffnete Gerät meldet sich alle 30 Sekunden im Tabellenblatt "Geräte" (Geräte-ID + Zeitpunkt). Als "online" zählt ein Gerät, dessen letztes Lebenszeichen höchstens 60 Sekunden alt ist - danach fällt es automatisch wieder raus, auch wenn die App mal nicht sauber beendet wurde. Taucht eine höhere Zahl auf, als eigene Geräte gerade wirklich geöffnet sind, ist das ein Hinweis auf einen fremden Zugriff - dann sofort den API-Schlüssel im Apps Script ändern.</p>
+  </details>
+
+  <details class="card">
     <summary class="q">GitHub ist öffentlich - kann jemand Fremdes meine echten Daten sehen?</summary>
     <p class="a">Nein, nicht allein dadurch. Öffentlich einsehbar ist nur der Programmcode (<code>index.html</code>, <code>faq.html</code>) - eine leere Hülle ganz ohne echte Zahlen. Die echten Daten kommen erst über die im Browser hinterlegte Apps-Script-URL, die nirgendwo im Code steht, sondern ausschließlich lokal auf dem jeweiligen Gerät gespeichert ist.</p>
   </details>

@@ -130,11 +130,23 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.20";
+const APP_VERSION = "2026.21";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const API_KEY_STORAGE = "finanzindex_api_key";
 function loadApiKey() { try { return localStorage.getItem(API_KEY_STORAGE) || ""; } catch (e) { return ""; } }
+
+// Stabile, zufällige Kennung für dieses eine Gerät/diesen Browser - einmal
+// erzeugt, danach dauerhaft in localStorage gespeichert. Grundlage für die
+// "X Geräte online"-Kontrollanzeige.
+const DEVICE_ID_KEY = "finanzindex_device_id";
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) { id = randomHex(8); localStorage.setItem(DEVICE_ID_KEY, id); }
+    return id;
+  } catch (e) { return "unbekannt"; }
+}
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
 
 /* ============================== Sicherheitssperre (Fingerabdruck/PIN) ============================== */
@@ -602,8 +614,9 @@ function mapRemoteData(data) {
 
   const einstellungen = data.einstellungen || [];
   const kontoauszuege = data.kontoauszuege || [];
+  const geraeteOnline = typeof data.geraeteOnline === "number" ? data.geraeteOnline : null;
 
-  return { accounts, categories, fixedCosts, transactions, einstellungen, kontoauszuege };
+  return { accounts, categories, fixedCosts, transactions, einstellungen, kontoauszuege, geraeteOnline };
 }
 
 /* ============================== Icons (minimal, ohne externe Abhängigkeit) ============================== */
@@ -916,6 +929,7 @@ function App() {
   const [fixedCosts, setFixedCosts] = useState(initial?.fixedCosts || []);
   const [einstellungen, setEinstellungen] = useState(initial?.einstellungen || []);
   const [kontoauszuege, setKontoauszuege] = useState(initial?.kontoauszuege || []);
+  const [geraeteOnline, setGeraeteOnline] = useState(null);
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [apiKey, setApiKey] = useState(loadApiKey());
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -985,6 +999,28 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gasUrl]);
 
+  // "Geräte online"-Lebenszeichen: alle 30 Sekunden, solange die App
+  // tatsächlich offen ist. Beim Schließen zusätzlich sofort per sendBeacon
+  // abmelden (zuverlässig genug, um auch beim Schließen der Seite noch
+  // rauszugehen) - stirbt die Verbindung mal unsauber, korrigiert sich die
+  // Zahl serverseitig ohnehin spätestens nach 60 Sekunden von selbst.
+  useEffect(() => {
+    if (!gasUrl) return;
+    const geraeteId = getDeviceId();
+    const sendHeartbeat = () => { gasPost(gasUrl, { action: "heartbeat", geraeteId }).catch(() => {}); };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 30000);
+    const handlePageHide = () => {
+      try {
+        const url = gasUrl + (gasUrl.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(loadApiKey());
+        navigator.sendBeacon(url, JSON.stringify({ action: "geraet-abmelden", geraeteId, key: loadApiKey() }));
+      } catch (e) {}
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => { clearInterval(interval); window.removeEventListener("pagehide", handlePageHide); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gasUrl]);
+
   const syncFromRemote = useCallback(async (silent) => {
     if (!gasUrl) { setSyncStatus("none"); return; }
     setSyncStatus("syncing");
@@ -996,6 +1032,7 @@ function App() {
       setFixedCosts(mergeFixkostenWithQueue(mapped.fixedCosts, loadQueue()));
       setEinstellungen(mapped.einstellungen);
       setKontoauszuege(mapped.kontoauszuege);
+      if (mapped.geraeteOnline !== null) setGeraeteOnline(mapped.geraeteOnline);
       setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
       setSyncStatus("connected");
       markSynced();
@@ -1338,7 +1375,14 @@ function App() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400"><Icon name="wallet" size={18} /></div>
           <div>
             <h1 className="text-[15px] font-semibold leading-tight text-zinc-100">Finanzindex</h1>
-            <p className="hidden text-[11px] leading-tight text-zinc-500 sm:block">Persönliche Finanzverwaltung</p>
+            {geraeteOnline !== null ? (
+              <p className="flex items-center gap-1 text-[10.5px] leading-tight text-zinc-500">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                {geraeteOnline} {geraeteOnline === 1 ? "Gerät" : "Geräte"} online
+              </p>
+            ) : (
+              <p className="hidden text-[11px] leading-tight text-zinc-500 sm:block">Persönliche Finanzverwaltung</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
