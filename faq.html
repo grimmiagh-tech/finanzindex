@@ -141,6 +141,33 @@
     <p class="a">Im Apps-Script-Editor die Funktion <code>kontoauszugJetzt</code> auswählen und ausführen – erstellt den Kontoauszug für den Vormonat sofort, unabhängig vom automatischen Monatswechsel.</p>
   </details>
 
+  <p class="cat">Sicherheit</p>
+
+  <details class="card">
+    <summary class="q">GitHub ist öffentlich - kann jemand Fremdes meine echten Daten sehen?</summary>
+    <p class="a">Nein, nicht allein dadurch. Öffentlich einsehbar ist nur der Programmcode (<code>index.html</code>, <code>faq.html</code>) - eine leere Hülle ganz ohne echte Zahlen. Die echten Daten kommen erst über die im Browser hinterlegte Apps-Script-URL, die nirgendwo im Code steht, sondern ausschließlich lokal auf dem jeweiligen Gerät gespeichert ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Kann jemand über GitHub meine Datei verändern, weil sie öffentlich lesbar ist?</summary>
+    <p class="a">Nein. Lesen und Verändern sind bei GitHub getrennte Rechte. Ändern kann ausschließlich der Besitzer des GitHub-Kontos (oder wer ausdrücklich mit Schreibrecht eingeladen wurde) - unabhängig davon, ob die Datei öffentlich sichtbar ist.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was ist der "API-Schlüssel" in den Einstellungen und wofür ist er gut?</summary>
+    <p class="a">Ein zusätzliches, zufällig erzeugtes Kennwort (hinterlegt im Apps Script als <code>API_SECRET</code>), das bei jeder Anfrage zusätzlich zur Apps-Script-URL mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet das Skript keine Anfrage - selbst wenn die URL allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Warum sind URL und API-Schlüssel in den Einstellungen wie ein Passwort maskiert?</summary>
+    <p class="a">Damit die beiden Werte nicht schon durch einen kurzen Blick über die Schulter sichtbar sind. Über "Anzeigen" oben im Kasten lassen sie sich bei Bedarf einblenden. Zusätzlich schützt die Sicherheitssperre (Fingerabdruck/PIN, siehe Bedienung) den Zugriff auf die App und damit auch auf diesen Bereich insgesamt.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Ist die FAQ-Seite (diese Seite hier) auch öffentlich?</summary>
+    <p class="a">Ja - anders als die eigentliche App hat diese FAQ-Seite keine eigene Sperre und ist für jeden mit der passenden Adresse lesbar. Da hier aber keinerlei echte Finanzdaten stehen, nur allgemeine Erklärungen zur Funktionsweise, ist das unbedenklich.</p>
+  </details>
+
   <p class="cat">Bedienung</p>
 
   <details class="card">

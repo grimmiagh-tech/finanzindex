@@ -130,9 +130,11 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.18";
+const APP_VERSION = "2026.19";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
+const API_KEY_STORAGE = "finanzindex_api_key";
+function loadApiKey() { try { return localStorage.getItem(API_KEY_STORAGE) || ""; } catch (e) { return ""; } }
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
 
 /* ============================== Sicherheitssperre (Fingerabdruck/PIN) ============================== */
@@ -514,7 +516,9 @@ async function fetchJsonWithRetry(gasUrl, options, attempts = 2) {
 }
 
 async function gasGet(gasUrl) {
-  const { json } = await fetchJsonWithRetry(gasUrl, { method: "GET" });
+  const key = loadApiKey();
+  const url = gasUrl + (gasUrl.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key);
+  const { json } = await fetchJsonWithRetry(url, { method: "GET" });
   if (json.status !== "ok") throw new Error(json.error || "Unbekannter Serverfehler beim Laden.");
   return json.data;
 }
@@ -530,7 +534,7 @@ async function gasPost(gasUrl, body) {
     method: "POST",
     mode: "cors",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, key: loadApiKey() }),
   });
   const text = await res.text();
   let json;
@@ -619,6 +623,8 @@ function Icon({ name, size = 16, className = "" }) {
     trash: <><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></>,
     x: <><path d="M18 6L6 18M6 6l12 12"/></>,
     lock: <><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></>,
+    eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
+    eyeOff: <><path d="M3 3l18 18"/><path d="M10.6 5.2A10.6 10.6 0 0112 5c6.5 0 10 7 10 7a17.7 17.7 0 01-3.1 4.1M6.6 6.6C4 8.3 2 12 2 12s3.5 7 10 7a9.7 9.7 0 004.4-1"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></>,
     arrowDown: <><circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 13l3 3 3-3"/></>,
     arrowUp: <><circle cx="12" cy="12" r="9"/><path d="M12 16V8M9 11l3-3 3 3"/></>,
     arrowLR: <><path d="M17 2l4 4-4 4M3 6h18M7 22l-4-4 4-4M21 18H3"/></>,
@@ -910,6 +916,7 @@ function App() {
   const [einstellungen, setEinstellungen] = useState(initial?.einstellungen || []);
   const [kontoauszuege, setKontoauszuege] = useState(initial?.kontoauszuege || []);
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
+  const [apiKey, setApiKey] = useState(loadApiKey());
   const [activeTab, setActiveTab] = useState("dashboard");
   const [syncStatus, setSyncStatus] = useState(gasUrl ? "offline" : "none");
   const [lastSync, setLastSync] = useState(() => {
@@ -1302,6 +1309,11 @@ function App() {
     setSyncStatus(url ? "offline" : "none");
   };
 
+  const applyApiKey = (key) => {
+    setApiKey(key);
+    try { localStorage.setItem(API_KEY_STORAGE, key); } catch (e) {}
+  };
+
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: "dashboard", primary: true },
     { id: "buchen", label: "Buchen", icon: "plus", primary: true },
@@ -1384,7 +1396,7 @@ function App() {
           <Auswertung transactions={transactions} accounts={accounts} categories={categories} ingBalance={ingBalance} trGesamt={trGesamt} kontoauszuege={kontoauszuege} />
         )}
         {activeTab === "einstellungen" && (
-          <Einstellungen gasUrl={gasUrl} onApplyGasUrl={applyGasUrl} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount}
+          <Einstellungen gasUrl={gasUrl} apiKey={apiKey} onApplyGasUrl={applyGasUrl} onApplyApiKey={applyApiKey} onDownloadBackup={downloadBackup} onDownloadJahresbericht={downloadJahresbericht} onManualSync={() => syncFromRemote(false).then(() => processQueue())} queueCount={queueCount}
             lockConfigured={lockConfigured} onSetupLock={() => setShowLockSetup(true)}
             onDisableLock={() => { localStorage.removeItem(LOCK_PIN_HASH_KEY); localStorage.removeItem(LOCK_PIN_SALT_KEY); localStorage.removeItem(LOCK_WEBAUTHN_KEY); setLockConfigured(false); }} />
         )}
@@ -2369,8 +2381,11 @@ function Auswertung({ transactions, accounts, categories, kontoauszuege }) {
 
 /* ============================== Einstellungen ============================== */
 
-function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount, lockConfigured, onSetupLock, onDisableLock }) {
+function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount, lockConfigured, onSetupLock, onDisableLock }) {
   const [value, setValue] = useState(gasUrl);
+  const [keyValue, setKeyValue] = useState(apiKey);
+  const [showSecrets, setShowSecrets] = useState(false);
+  const secretType = showSecrets ? "text" : "password";
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <h2 className="text-base font-semibold text-zinc-200">Einstellungen</h2>
@@ -2380,14 +2395,25 @@ function Einstellungen({ gasUrl, onApplyGasUrl, onDownloadBackup, onDownloadJahr
         </div>
       )}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-zinc-200">Verbindung</p>
+          <button onClick={() => setShowSecrets((v) => !v)} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300">
+            <Icon name={showSecrets ? "eyeOff" : "eye"} size={13} />{showSecrets ? "Verbergen" : "Anzeigen"}
+          </button>
+        </div>
         <Field label="Google Apps Script Web-App URL">
-          <input className={inputCls} placeholder="https://script.google.com/macros/s/…/exec" value={value} onChange={(e) => setValue(e.target.value)} />
+          <input type={secretType} autoComplete="off" className={inputCls} placeholder="https://script.google.com/macros/s/…/exec" value={value} onChange={(e) => setValue(e.target.value)} />
         </Field>
+        <div className="mt-3">
+          <Field label="API-Schlüssel">
+            <input type={secretType} autoComplete="off" className={inputCls} placeholder="im Apps Script bei API_SECRET eingetragener Wert" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} />
+          </Field>
+        </div>
         <div className="mt-3 flex gap-2">
-          <button onClick={() => onApplyGasUrl(value.trim())} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500">Speichern & verbinden</button>
+          <button onClick={() => { onApplyGasUrl(value.trim()); onApplyApiKey(keyValue.trim()); }} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500">Speichern & verbinden</button>
           <button onClick={onManualSync} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800">Jetzt synchronisieren</button>
         </div>
-        <p className="mt-2 text-[11.5px] text-zinc-500">Die URL wird lokal in diesem Browser gespeichert (localStorage) und für echte GET/POST-Aufrufe an dein Apps-Script-Backend verwendet.</p>
+        <p className="mt-2 text-[11.5px] text-zinc-500">Beide Werte werden nur lokal in diesem Browser gespeichert und bei jeder Anfrage an dein Apps-Script-Backend mitgeschickt. Ohne passenden API-Schlüssel antwortet das Skript auf keine Anfrage.</p>
       </div>
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
         <div className="mb-2 flex items-center justify-between">
