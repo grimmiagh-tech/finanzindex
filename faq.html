@@ -99,7 +99,7 @@
 
   <details class="card">
     <summary class="q">Was passiert, wenn die Automatisierung fehlschlägt?</summary>
-    <p class="a">Es wird automatisch eine E-Mail an die in <code>NOTIFY_EMAIL</code> hinterlegte Adresse verschickt, inklusive Fehlermeldung und Protokoll der bereits erledigten Schritte.</p>
+    <p class="a">Es wird automatisch eine E-Mail an die im Skript hinterlegte Adresse verschickt, inklusive Fehlermeldung und Protokoll der bereits erledigten Schritte.</p>
   </details>
 
   <p class="cat">Sicherung (Backup)</p>
@@ -155,7 +155,7 @@
 
   <details class="card">
     <summary class="q">Was ist der "API-Schlüssel" in den Einstellungen und wofür ist er gut?</summary>
-    <p class="a">Ein zusätzliches, zufällig erzeugtes Kennwort (hinterlegt im Apps Script als <code>API_SECRET</code>), das bei jeder Anfrage zusätzlich zur Apps-Script-URL mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet das Skript keine Anfrage - selbst wenn die URL allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
+    <p class="a">Ein zusätzliches, zufällig erzeugtes Kennwort, das im Skript hinterlegt ist und bei jeder Anfrage zusätzlich zur Apps-Script-URL mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet das Skript keine Anfrage - selbst wenn die URL allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
   </details>
 
   <details class="card">
@@ -209,7 +209,7 @@
 
   <details class="card">
     <summary class="q">Wo liegen die Daten wirklich?</summary>
-    <p class="a">Ausschließlich im Google Sheet "Finanzen 2.0" (Blätter: Konten, Kategorien, Fixkosten_Plan, Transaktionen, Einstellungen). Das Sheet ist die einzige echte Datenquelle.</p>
+    <p class="a">Ausschließlich im verknüpften Google Sheet (Blätter: Konten, Kategorien, Fixkosten_Plan, Transaktionen, Einstellungen). Das Sheet ist die einzige echte Datenquelle.</p>
   </details>
 
   <details class="card">
