@@ -130,7 +130,7 @@ const ACCOUNT_COLOR = (name) => (ACCOUNT_BADGES[name] ? ACCOUNT_BADGES[name].bg 
 // Versionsnummer: {Jahr}.{fortlaufende Nummer der index.html-Version}. Wird
 // von Claude bei jeder neuen index.html manuell um 1 erhöht, damit jederzeit
 // erkennbar ist, ob die live geschaltete Version dem letzten Stand entspricht.
-const APP_VERSION = "2026.21";
+const APP_VERSION = "2026.23";
 const STORAGE_KEY = "finanzindex_state_v1";
 const GAS_KEY = "finanzindex_gas_url";
 const API_KEY_STORAGE = "finanzindex_api_key";
@@ -147,6 +147,9 @@ function getDeviceId() {
     return id;
   } catch (e) { return "unbekannt"; }
 }
+const DEVICE_NAME_KEY = "finanzindex_device_name";
+function getDeviceName() { try { return localStorage.getItem(DEVICE_NAME_KEY) || ""; } catch (e) { return ""; } }
+function saveDeviceName(name) { try { localStorage.setItem(DEVICE_NAME_KEY, name); } catch (e) {} }
 const QUEUE_KEY = "finanzindex_warteschlange_v1";
 
 /* ============================== Sicherheitssperre (Fingerabdruck/PIN) ============================== */
@@ -529,7 +532,7 @@ async function fetchJsonWithRetry(gasUrl, options, attempts = 2) {
 
 async function gasGet(gasUrl) {
   const key = loadApiKey();
-  const url = gasUrl + (gasUrl.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key);
+  const url = gasUrl + (gasUrl.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key) + "&geraeteId=" + encodeURIComponent(getDeviceId());
   const { json } = await fetchJsonWithRetry(url, { method: "GET" });
   if (json.status !== "ok") throw new Error(json.error || "Unbekannter Serverfehler beim Laden.");
   return json.data;
@@ -614,9 +617,10 @@ function mapRemoteData(data) {
 
   const einstellungen = data.einstellungen || [];
   const kontoauszuege = data.kontoauszuege || [];
-  const geraeteOnline = typeof data.geraeteOnline === "number" ? data.geraeteOnline : null;
+  const geraete = Array.isArray(data.geraete) ? data.geraete : null;
+  const geraetGesperrt = data.gesperrt === true;
 
-  return { accounts, categories, fixedCosts, transactions, einstellungen, kontoauszuege, geraeteOnline };
+  return { accounts, categories, fixedCosts, transactions, einstellungen, kontoauszuege, geraete, geraetGesperrt };
 }
 
 /* ============================== Icons (minimal, ohne externe Abhängigkeit) ============================== */
@@ -638,6 +642,7 @@ function Icon({ name, size = 16, className = "" }) {
     lock: <><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></>,
     eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
     eyeOff: <><path d="M3 3l18 18"/><path d="M10.6 5.2A10.6 10.6 0 0112 5c6.5 0 10 7 10 7a17.7 17.7 0 01-3.1 4.1M6.6 6.6C4 8.3 2 12 2 12s3.5 7 10 7a9.7 9.7 0 004.4-1"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></>,
+    logout: <><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></>,
     arrowDown: <><circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 13l3 3 3-3"/></>,
     arrowUp: <><circle cx="12" cy="12" r="9"/><path d="M12 16V8M9 11l3-3 3 3"/></>,
     arrowLR: <><path d="M17 2l4 4-4 4M3 6h18M7 22l-4-4 4-4M21 18H3"/></>,
@@ -769,6 +774,18 @@ function Numpad({ onDigit, onDelete }) {
           </button>
         )
       )}
+    </div>
+  );
+}
+
+function BlockedScreen() {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-zinc-950 px-6 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/15">
+        <Icon name="lock" size={28} className="text-rose-400" />
+      </div>
+      <p className="text-base font-semibold text-zinc-200">Dieses Gerät wurde gesperrt</p>
+      <p className="max-w-[280px] text-[13px] text-zinc-500">Der Zugriff auf Finanzindex wurde für dieses Gerät vom Kontoinhaber deaktiviert. Es ist keine weitere Aktion auf diesem Gerät möglich.</p>
     </div>
   );
 }
@@ -929,7 +946,9 @@ function App() {
   const [fixedCosts, setFixedCosts] = useState(initial?.fixedCosts || []);
   const [einstellungen, setEinstellungen] = useState(initial?.einstellungen || []);
   const [kontoauszuege, setKontoauszuege] = useState(initial?.kontoauszuege || []);
-  const [geraeteOnline, setGeraeteOnline] = useState(null);
+  const [geraete, setGeraete] = useState(null);
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [showGeraetePopup, setShowGeraetePopup] = useState(false);
   const [gasUrl, setGasUrl] = useState(loadGasUrl());
   const [apiKey, setApiKey] = useState(loadApiKey());
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -1005,9 +1024,13 @@ function App() {
   // rauszugehen) - stirbt die Verbindung mal unsauber, korrigiert sich die
   // Zahl serverseitig ohnehin spätestens nach 60 Sekunden von selbst.
   useEffect(() => {
-    if (!gasUrl) return;
+    if (!gasUrl || deviceBlocked) return;
     const geraeteId = getDeviceId();
-    const sendHeartbeat = () => { gasPost(gasUrl, { action: "heartbeat", geraeteId }).catch(() => {}); };
+    const sendHeartbeat = () => {
+      gasPost(gasUrl, { action: "heartbeat", geraeteId, geraeteName: getDeviceName() })
+        .then((res) => { if (res.gesperrt) { setDeviceBlocked(true); clearInterval(interval); } })
+        .catch(() => {});
+    };
     sendHeartbeat();
     const interval = setInterval(sendHeartbeat, 30000);
     const handlePageHide = () => {
@@ -1019,6 +1042,11 @@ function App() {
     window.addEventListener("pagehide", handlePageHide);
     return () => { clearInterval(interval); window.removeEventListener("pagehide", handlePageHide); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gasUrl, deviceBlocked]);
+
+  const sperreGeraetClient = useCallback((id) => {
+    if (!gasUrl) return;
+    gasPost(gasUrl, { action: "geraet-sperren", geraeteId: id }).then(() => syncFromRemote(true)).catch(() => {});
   }, [gasUrl]);
 
   const syncFromRemote = useCallback(async (silent) => {
@@ -1032,7 +1060,8 @@ function App() {
       setFixedCosts(mergeFixkostenWithQueue(mapped.fixedCosts, loadQueue()));
       setEinstellungen(mapped.einstellungen);
       setKontoauszuege(mapped.kontoauszuege);
-      if (mapped.geraeteOnline !== null) setGeraeteOnline(mapped.geraeteOnline);
+      if (mapped.geraete !== null) setGeraete(mapped.geraete);
+      if (mapped.geraetGesperrt) setDeviceBlocked(true);
       setTransactions(mergeWithQueue(mapped.transactions, loadQueue()));
       setSyncStatus("connected");
       markSynced();
@@ -1365,6 +1394,7 @@ function App() {
   const secondaryTabs = tabs.filter((t) => !t.primary);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
+  if (deviceBlocked) return <BlockedScreen />;
   if (locked) return <LockScreen onUnlock={() => { markUnlocked(); setLocked(false); }} />;
   if (showLockSetup) return <LockSetup onDone={() => { markUnlocked(); setLockConfigured(true); setShowLockSetup(false); }} onCancel={() => setShowLockSetup(false)} />;
 
@@ -1373,15 +1403,38 @@ function App() {
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-800 bg-zinc-950/95 px-4 py-3 backdrop-blur md:px-6">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400"><Icon name="wallet" size={18} /></div>
-          <div>
+          <div className="relative">
             <h1 className="text-[15px] font-semibold leading-tight text-zinc-100">Finanzindex</h1>
-            {geraeteOnline !== null ? (
-              <p className="flex items-center gap-1 text-[10.5px] leading-tight text-zinc-500">
+            {geraete !== null ? (
+              <button onClick={() => { const next = !showGeraetePopup; setShowGeraetePopup(next); if (next) syncFromRemote(true); }} className="flex items-center gap-1 text-[10.5px] leading-tight text-zinc-500 hover:text-zinc-300">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                {geraeteOnline} {geraeteOnline === 1 ? "Gerät" : "Geräte"} online
-              </p>
+                <span className="underline decoration-dotted underline-offset-2">{geraete.filter((g) => g.online).length} {geraete.filter((g) => g.online).length === 1 ? "Gerät" : "Geräte"} online</span>
+              </button>
             ) : (
               <p className="hidden text-[11px] leading-tight text-zinc-500 sm:block">Persönliche Finanzverwaltung</p>
+            )}
+            {showGeraetePopup && geraete !== null && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowGeraetePopup(false)} />
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-zinc-800 bg-zinc-900 p-1 shadow-xl">
+                  {geraete.length === 0 && <p className="px-3 py-2.5 text-xs text-zinc-500">Keine Geräte bekannt.</p>}
+                  {geraete.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 hover:bg-zinc-800/60">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs text-zinc-200">
+                          {g.name || "Unbenanntes Gerät"}
+                          {g.id === getDeviceId() && <span className="ml-1.5 text-[10px] text-emerald-400">(dieses Gerät)</span>}
+                          {g.gesperrt && <span className="ml-1.5 text-[10px] text-rose-400">(gesperrt)</span>}
+                        </p>
+                        <p className="text-[10px] text-zinc-500">{g.online ? "gerade eben" : g.zuletztGesehen ? "zuletzt " + dateDE(new Date(g.zuletztGesehen).toISOString()) : ""}</p>
+                      </div>
+                      {!g.gesperrt && g.id !== getDeviceId() && (
+                        <button onClick={() => sperreGeraetClient(g.id)} className="shrink-0 rounded-lg border border-zinc-700 px-2 py-1 text-[10.5px] text-zinc-400 hover:border-rose-500/40 hover:text-rose-400">Sperren</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -2429,6 +2482,7 @@ function Auswertung({ transactions, accounts, categories, kontoauszuege }) {
 function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloadBackup, onDownloadJahresbericht, onManualSync, queueCount, lockConfigured, onSetupLock, onDisableLock }) {
   const [value, setValue] = useState(gasUrl);
   const [keyValue, setKeyValue] = useState(apiKey);
+  const [deviceName, setDeviceName] = useState(getDeviceName());
   const [showSecrets, setShowSecrets] = useState(false);
   const [confirmReveal, setConfirmReveal] = useState(false);
   const secretType = showSecrets ? "text" : "password";
@@ -2477,6 +2531,14 @@ function Einstellungen({ gasUrl, apiKey, onApplyGasUrl, onApplyApiKey, onDownloa
           <button onClick={onManualSync} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800">Jetzt synchronisieren</button>
         </div>
         <p className="mt-2 text-[11.5px] text-zinc-500">Beide Werte werden nur lokal in diesem Browser gespeichert und bei jeder Anfrage an dein Apps-Script-Backend mitgeschickt. Ohne passenden API-Schlüssel antwortet das Skript auf keine Anfrage.</p>
+      </div>
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <p className="mb-3 text-sm font-medium text-zinc-200">Gerätename</p>
+        <Field label="Wie soll dieses Gerät in der Geräte-Liste heißen?">
+          <input className={inputCls} placeholder="z. B. Mi 13, Mi Pad 7 Pro, PC" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
+        </Field>
+        <button onClick={() => saveDeviceName(deviceName.trim())} className="mt-3 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500">Speichern</button>
+        <p className="mt-2 text-[11.5px] text-zinc-500">Erscheint im Kopfbereich beim Antippen von "X Geräte online", damit du deine eigenen Geräte wiedererkennst.</p>
       </div>
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
         <div className="mb-2 flex items-center justify-between">
