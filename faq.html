@@ -130,12 +130,12 @@
 
   <details class="card">
     <summary class="q">Was bedeutet "X Geräte online" oben im Header?</summary>
-    <p class="a">Eine reine Kontrollanzeige. Jedes geöffnete Gerät meldet sich alle 25 Sekunden bei Supabase (Geräte-ID, Name, Zeitpunkt, Gesperrt-Status). Als "online" zählt ein Gerät, dessen letztes Lebenszeichen höchstens 55 Sekunden alt ist - danach fällt es automatisch wieder raus, auch wenn die App mal nicht sauber beendet wurde. Antippen öffnet eine Liste aller bekannten Geräte mit Zeitpunkt und einem "Sperren"-Knopf je fremdem Gerät. Taucht eine höhere Zahl auf, als eigene Geräte gerade wirklich geöffnet sind, ist das ein Hinweis auf einen fremden Zugriff.</p>
+    <p class="a">Eine reine Kontrollanzeige. Jedes geöffnete Gerät meldet sich alle 12 Sekunden bei Supabase (Geräte-ID, Name, Zeitpunkt, Gesperrt-Status). Als "online" zählt ein Gerät, dessen letztes Lebenszeichen höchstens 28 Sekunden alt ist - danach fällt es automatisch wieder raus, auch wenn die App mal nicht sauber beendet wurde. Antippen öffnet eine Liste aller bekannten Geräte mit Zeitpunkt und einem "Sperren"-Knopf je fremdem Gerät. Taucht eine höhere Zahl auf, als eigene Geräte gerade wirklich geöffnet sind, ist das ein Hinweis auf einen fremden Zugriff.</p>
   </details>
 
   <details class="card">
     <summary class="q">Was passiert, wenn ich ein Gerät in der Liste "sperre"?</summary>
-    <p class="a">Das Gerät bekommt spätestens bei seinem nächsten Lebenszeichen (innerhalb von rund 25 Sekunden) einen vollflächigen Sperrbildschirm angezeigt - unabhängig davon, ob auf diesem Gerät eine PIN eingerichtet ist. Es kann die App danach nicht mehr benutzen. Das eigene, gerade aktiv genutzte Gerät lässt sich absichtlich nicht sperren.</p>
+    <p class="a">Das Gerät bekommt spätestens bei seinem nächsten Lebenszeichen (innerhalb von rund 12 Sekunden) einen vollflächigen Sperrbildschirm angezeigt - unabhängig davon, ob auf diesem Gerät eine PIN eingerichtet ist. Es kann die App danach nicht mehr benutzen. Das eigene, gerade aktiv genutzte Gerät lässt sich absichtlich nicht sperren.</p>
   </details>
 
   <details class="card">
