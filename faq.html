@@ -89,41 +89,31 @@
 
   <details class="card">
     <summary class="q">Was passiert automatisch am 1. jeden Monats?</summary>
-    <p class="a">Zuerst wird der Ausgaberest-Ausgleich für den Vormonat gebucht, danach die neuen Fixkosten und die Besoldung für den aktuellen Monat, danach ein automatisches Backup erstellt. Läuft serverseitig über Google Apps Script, unabhängig davon, ob die App-Seite geöffnet ist.</p>
-  </details>
-
-  <details class="card">
-    <summary class="q">Wie lässt sich der Monatswechsel vorab gefahrlos testen?</summary>
-    <p class="a">Im Apps-Script-Editor die Funktion <code>testAlsMonatsanfangOktober</code> (oder <code>testAlsMonatsanfangNovember</code>) ausführen. Das erstellt automatisch eine komplette Testkopie des Sheets und lässt das Original unangetastet.</p>
+    <p class="a">Zuerst wird der Ausgaberest-Ausgleich für den Vormonat gebucht, danach der Kontoauszug erstellt, dann die neuen Fixkosten und die Besoldung für den aktuellen Monat gebucht, danach eine Sicherung erstellt. Läuft serverseitig über eine Cloud-Funktion bei Supabase, unabhängig davon, ob die App-Seite geöffnet ist.</p>
   </details>
 
   <details class="card">
     <summary class="q">Was passiert, wenn die Automatisierung fehlschlägt?</summary>
-    <p class="a">Es wird automatisch eine E-Mail an die im Skript hinterlegte Adresse verschickt, inklusive Fehlermeldung und Protokoll der bereits erledigten Schritte.</p>
+    <p class="a">Es wird automatisch eine E-Mail an die hinterlegte Adresse verschickt, inklusive Fehlermeldung und Protokoll der bereits erledigten Schritte.</p>
   </details>
 
   <p class="cat">Sicherung (Backup)</p>
 
   <details class="card">
     <summary class="q">Muss selbst etwas für Backups getan werden?</summary>
-    <p class="a">Nein. Sobald <code>installTrigger</code> einmal ausgeführt wurde, legt das Skript automatisch jeden Monat eine datierte Kopie des kompletten Sheets in Google Drive ab (Name: "Finanzindex Backup JJJJ-MM-TT").</p>
-  </details>
-
-  <details class="card">
-    <summary class="q">Wie lässt sich sofort eine Sicherung erstellen, ohne zu warten?</summary>
-    <p class="a">Zwei Wege: (1) In Google Sheets oben "Datei" → "Kopie erstellen" – sofort, ganz ohne Skript. (2) Im Apps-Script-Editor die Funktion <code>backupJetzt</code> auswählen und ausführen – erstellt dieselbe Art von Backup wie die automatische, nur sofort auf Wunsch.</p>
+    <p class="a">Nein. Einmal im Monat exportiert eine Cloud-Funktion automatisch alle Daten in eine datierte Sicherungsdatei bei Supabase (Name: "Finanzindex Backup JJJJ-MM-TT.json") und schickt danach eine Bestätigungs-E-Mail.</p>
   </details>
 
   <details class="card">
     <summary class="q">Wie wird im Notfall aus einer Sicherung wiederhergestellt?</summary>
-    <p class="a">Bei kleineren, kürzlichen Fehlern reicht oft "Datei" → "Versionsverlauf" direkt in Google Sheets, ganz ohne Backup-Datei. Bei größeren Problemen: die Backup-Datei in Drive öffnen und die benötigten Werte manuell zurück ins Original-Sheet übertragen.</p>
+    <p class="a">Die monatliche Sicherungsdatei im Supabase-Dashboard herunterladen und bei Bedarf die benötigten Werte manuell zurück in die Datenbank übertragen.</p>
   </details>
 
   <p class="cat">Kontoauszug</p>
 
   <details class="card">
     <summary class="q">Was ist der Kontoauszug und wann entsteht er?</summary>
-    <p class="a">Ein fester, unveränderlicher PDF-Schnappschuss des abgelaufenen Monats – anders als das Sheet, das sich laufend weiter verändert. Er entsteht automatisch als Teil des monatlichen Ablaufs: Ausgaberest-Ausgleich → Kontoauszug → neue Fixkosten → Backup. Läuft also ebenfalls am 1. jeden Monats zwischen 1 und 2 Uhr, sobald <code>installTrigger</code> eingerichtet ist.</p>
+    <p class="a">Ein fester, unveränderlicher PDF-Schnappschuss des abgelaufenen Monats – anders als die laufenden Buchungen in der App, die sich weiter verändern. Er entsteht automatisch als Teil des monatlichen Ablaufs: Ausgaberest-Ausgleich → Kontoauszug → neue Fixkosten → Sicherung. Läuft also ebenfalls am 1. jeden Monats zwischen 1 und 2 Uhr.</p>
   </details>
 
   <details class="card">
@@ -133,29 +123,24 @@
 
   <details class="card">
     <summary class="q">Wo wird der Kontoauszug gespeichert und wie sehe ich ihn mir an?</summary>
-    <p class="a">Als PDF im Drive-Ordner "Finanzindex Kontoauszüge" (wird beim ersten Mal automatisch angelegt), neben dem Sheet. In der App im Tab "Auswertung" erscheint unten eine Liste aller bisher erstellten Kontoauszüge zum direkten Antippen und Ansehen – ohne selbst etwas herunterzuladen, da die Datei ja bereits in Drive liegt.</p>
-  </details>
-
-  <details class="card">
-    <summary class="q">Wie lässt sich sofort ein Kontoauszug erstellen, ohne zu warten?</summary>
-    <p class="a">Im Apps-Script-Editor die Funktion <code>kontoauszugJetzt</code> auswählen und ausführen – erstellt den Kontoauszug für den Vormonat sofort, unabhängig vom automatischen Monatswechsel.</p>
+    <p class="a">Als PDF in der Supabase-Dateiablage. In der App im Tab "Auswertung" erscheint unten eine Liste aller bisher erstellten Kontoauszüge zum direkten Antippen und Ansehen – ohne selbst etwas herunterzuladen.</p>
   </details>
 
   <p class="cat">Sicherheit</p>
 
   <details class="card">
     <summary class="q">Was bedeutet "X Geräte online" oben im Header?</summary>
-    <p class="a">Eine reine Kontrollanzeige. Jedes geöffnete Gerät meldet sich alle 30 Sekunden im Tabellenblatt "Geräte" (Geräte-ID, Name, Zeitpunkt, Gesperrt). Als "online" zählt ein Gerät, dessen letztes Lebenszeichen höchstens 60 Sekunden alt ist - danach fällt es automatisch wieder raus, auch wenn die App mal nicht sauber beendet wurde. Antippen öffnet eine Liste aller bekannten Geräte mit Zeitpunkt und einem "Sperren"-Knopf je fremdem Gerät. Taucht eine höhere Zahl auf, als eigene Geräte gerade wirklich geöffnet sind, ist das ein Hinweis auf einen fremden Zugriff.</p>
+    <p class="a">Eine reine Kontrollanzeige. Jedes geöffnete Gerät meldet sich alle 25 Sekunden bei Supabase (Geräte-ID, Name, Zeitpunkt, Gesperrt-Status). Als "online" zählt ein Gerät, dessen letztes Lebenszeichen höchstens 55 Sekunden alt ist - danach fällt es automatisch wieder raus, auch wenn die App mal nicht sauber beendet wurde. Antippen öffnet eine Liste aller bekannten Geräte mit Zeitpunkt und einem "Sperren"-Knopf je fremdem Gerät. Taucht eine höhere Zahl auf, als eigene Geräte gerade wirklich geöffnet sind, ist das ein Hinweis auf einen fremden Zugriff.</p>
   </details>
 
   <details class="card">
     <summary class="q">Was passiert, wenn ich ein Gerät in der Liste "sperre"?</summary>
-    <p class="a">Das Gerät bekommt spätestens bei seinem nächsten Lebenszeichen (innerhalb von rund 30 Sekunden) einen vollflächigen Sperrbildschirm angezeigt - unabhängig davon, ob auf diesem Gerät eine PIN eingerichtet ist. Es kann die App danach nicht mehr benutzen. Das eigene, gerade aktiv genutzte Gerät lässt sich absichtlich nicht sperren.</p>
+    <p class="a">Das Gerät bekommt spätestens bei seinem nächsten Lebenszeichen (innerhalb von rund 25 Sekunden) einen vollflächigen Sperrbildschirm angezeigt - unabhängig davon, ob auf diesem Gerät eine PIN eingerichtet ist. Es kann die App danach nicht mehr benutzen. Das eigene, gerade aktiv genutzte Gerät lässt sich absichtlich nicht sperren.</p>
   </details>
 
   <details class="card">
     <summary class="q">Wie hebe ich eine Sperre wieder auf, falls ich versehentlich das falsche Gerät gesperrt habe?</summary>
-    <p class="a">Absichtlich nicht aus der App heraus möglich. Im Tabellenblatt "Geräte" in der Spalte "Gesperrt" das Häkchen bei der entsprechenden Zeile per Hand entfernen. Das ist bewusst so gebaut: Ein fremdes Gerät kennt zwar eventuell den API-Schlüssel, hat aber keinen Zugriff auf das Google-Konto selbst - die Sperre lässt sich also nur von dir selbst aufheben, nie vom gesperrten Gerät.</p>
+    <p class="a">Absichtlich nicht aus der App heraus möglich. Im Supabase-Dashboard in der Tabelle "geraete" das Häkchen bei "gesperrt" für die entsprechende Zeile per Hand entfernen. Das ist bewusst so gebaut: Ein fremdes Gerät kennt zwar eventuell die Zugangsdaten, hat aber keinen Zugriff auf das Supabase-Konto selbst - die Sperre lässt sich also nur von dir selbst aufheben, nie vom gesperrten Gerät.</p>
   </details>
 
   <details class="card">
@@ -165,7 +150,7 @@
 
   <details class="card">
     <summary class="q">GitHub ist öffentlich - kann jemand Fremdes meine echten Daten sehen?</summary>
-    <p class="a">Nein, nicht allein dadurch. Öffentlich einsehbar ist nur der Programmcode (<code>index.html</code>, <code>faq.html</code>) - eine leere Hülle ganz ohne echte Zahlen. Die echten Daten kommen erst über die im Browser hinterlegte Apps-Script-URL, die nirgendwo im Code steht, sondern ausschließlich lokal auf dem jeweiligen Gerät gespeichert ist.</p>
+    <p class="a">Nein, nicht allein dadurch. Öffentlich einsehbar ist nur der Programmcode (<code>index.html</code>, <code>faq.html</code>) - eine leere Hülle ganz ohne echte Zahlen. Die echten Daten kommen erst über die im Browser hinterlegte Supabase-Verbindung (Projekt-Adresse und Schlüssel), die nirgendwo im Code steht, sondern ausschließlich lokal auf dem jeweiligen Gerät gespeichert ist.</p>
   </details>
 
   <details class="card">
@@ -174,12 +159,12 @@
   </details>
 
   <details class="card">
-    <summary class="q">Was ist der "API-Schlüssel" in den Einstellungen und wofür ist er gut?</summary>
-    <p class="a">Ein zusätzliches, zufällig erzeugtes Kennwort, das im Skript hinterlegt ist und bei jeder Anfrage zusätzlich zur Apps-Script-URL mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet das Skript keine Anfrage - selbst wenn die URL allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
+    <summary class="q">Was ist der "Supabase anon key" in den Einstellungen und wofür ist er gut?</summary>
+    <p class="a">Ein Zugriffsschlüssel für die Datenbank, der bei jeder Anfrage zusätzlich zur Projekt-Adresse mitgeschickt werden muss. Ohne diesen Schlüssel beantwortet die Datenbank keine Anfrage - selbst wenn die Adresse allein irgendwo sichtbar werden sollte, reicht das allein nicht mehr für einen Zugriff.</p>
   </details>
 
   <details class="card">
-    <summary class="q">Warum sind URL und API-Schlüssel in den Einstellungen wie ein Passwort maskiert?</summary>
+    <summary class="q">Warum sind Projekt-Adresse und Schlüssel in den Einstellungen wie ein Passwort maskiert?</summary>
     <p class="a">Damit die beiden Werte nicht schon durch einen kurzen Blick über die Schulter sichtbar sind. Ist auf diesem Gerät eine Sicherheitssperre eingerichtet, verlangt "Anzeigen" zusätzlich eine erneute Bestätigung per PIN oder Fingerabdruck, bevor die Werte im Klartext erscheinen - auch innerhalb einer bereits entsperrten App-Sitzung.</p>
   </details>
 
@@ -197,7 +182,7 @@
 
   <details class="card">
     <summary class="q">Kann ich Fixkosten-Positionen direkt in der App bearbeiten?</summary>
-    <p class="a">Ja. Anlegen, Bearbeiten und Löschen im Tab "Fixkosten" schreibt direkt ins Sheet, genau wie bei normalen Buchungen – inklusive automatischem Nachholen bei einer Verbindungsstörung. Voraussetzung dafür ist eine eindeutige "ID"-Spalte in Fixkosten_Plan (einmalig über die Funktion <code>fixkostenIdsErgaenzen</code> im Apps-Script-Editor eingerichtet).</p>
+    <p class="a">Ja. Anlegen, Bearbeiten und Löschen im Tab "Fixkosten" schreibt direkt in die Datenbank, genau wie bei normalen Buchungen – inklusive automatischem Nachholen bei einer Verbindungsstörung.</p>
   </details>
 
   <details class="card">
@@ -217,12 +202,12 @@
 
   <details class="card">
     <summary class="q">Was bedeutet die Zeitangabe neben dem Sync-Symbol (z. B. "vor 2 Min")?</summary>
-    <p class="a">Das ist der Zeitpunkt der letzten erfolgreich bestätigten Synchronisierung mit dem Google Sheet, keine Live-Uhr. Während gerade synchronisiert wird, steht dort "läuft…", bei einem Fehlschlag "Fehler". Ein Antippen des Symbols stößt jederzeit eine erneute Synchronisierung an.</p>
+    <p class="a">Das ist der Zeitpunkt der letzten erfolgreich bestätigten Synchronisierung mit der Datenbank, keine Live-Uhr. Während gerade synchronisiert wird, steht dort "läuft…", bei einem Fehlschlag "Fehler". Ein Antippen des Symbols stößt jederzeit eine erneute Synchronisierung an.</p>
   </details>
 
   <details class="card">
-    <summary class="q">Warum dauert die Synchronisierung auf dem Smartphone manchmal sehr lange?</summary>
-    <p class="a">Die Oberfläche zeigt sofort den zuletzt gespeicherten Stand aus einem lokalen Zwischenspeicher an – die Zahlen erscheinen also unmittelbar. Im Hintergrund läuft parallel die eigentliche Verbindung zu Google Apps Script, die bei schwachem Mobilfunkempfang deutlich länger dauern kann, da die Antwort dabei technisch über einen zusätzlichen Zwischenschritt (eine Weiterleitung) ausgeliefert wird. Das ist eine bekannte Einschränkung von Google Apps Script bei mobilen Verbindungen, keine Fehlfunktion der App. Die App bleibt währenddessen normal bedienbar.</p>
+    <summary class="q">Warum dauert die Synchronisierung auf dem Smartphone manchmal etwas länger?</summary>
+    <p class="a">Die Oberfläche zeigt sofort den zuletzt gespeicherten Stand aus einem lokalen Zwischenspeicher an – die Zahlen erscheinen also unmittelbar. Im Hintergrund läuft parallel die eigentliche Verbindung zur Datenbank, die bei schwachem Mobilfunkempfang etwas länger dauern kann. Die App bleibt währenddessen normal bedienbar.</p>
   </details>
 
   <p class="cat">KI-Assistent</p>
@@ -248,32 +233,27 @@
 
   <details class="card">
     <summary class="q">Wo liegen die Daten wirklich?</summary>
-    <p class="a">Ausschließlich im verknüpften Google Sheet (Blätter: Konten, Kategorien, Fixkosten_Plan, Transaktionen, Einstellungen). Das Sheet ist die einzige echte Datenquelle.</p>
+    <p class="a">In einer Supabase-Datenbank (Postgres) - die einzige echte Datenquelle.</p>
   </details>
 
   <details class="card">
     <summary class="q">Was ist die Webseite (index.html) eigentlich?</summary>
-    <p class="a">Eine reine Oberfläche ohne eigene Datenspeicherung. Sie liegt bei GitHub Pages, lädt beim Öffnen React, Chart.js und weitere Bausteine live aus dem Internet und ruft anschließend die aktuellen Daten aus dem Google Sheet ab.</p>
+    <p class="a">Eine reine Oberfläche ohne eigene Datenspeicherung. Sie liegt bei GitHub Pages, lädt beim Öffnen React, Chart.js und weitere Bausteine live aus dem Internet und ruft anschließend die aktuellen Daten von Supabase ab.</p>
   </details>
 
   <details class="card">
-    <summary class="q">Was ist das Google Apps Script und wo liegt es?</summary>
-    <p class="a">Ein Programm, direkt an das Sheet gebunden (Erweiterungen → Apps Script). Es übernimmt zwei Aufgaben: Als Web-App beantwortet es die Anfragen der Seite (Daten lesen/schreiben), und unabhängig davon läuft es einmal im Monat automatisch (Ausgaberest, Fixkosten, Backup) – auch wenn die Seite nie geöffnet wird.</p>
+    <summary class="q">Was läuft automatisch im Hintergrund, auch ohne geöffnete App?</summary>
+    <p class="a">Cloud-Funktionen bei Supabase (sogenannte Edge Functions). Eine beantwortet die Anfragen des KI-Assistenten, eine andere läuft unabhängig davon einmal im Monat automatisch (Ausgaberest, Kontoauszug, Fixkosten, Sicherung) – auch wenn die Seite nie geöffnet wird.</p>
   </details>
 
   <details class="card">
-    <summary class="q">Wie hängen GitHub, die App und das Sheet zusammen?</summary>
-    <p class="a">GitHub Pages (Ort für den Programmcode) → Web-App-URL → Google Apps Script → liest und schreibt im Google Sheet. Bei einer Weiterentwicklung der App wird eine neue <code>index.html</code> und/oder <code>.gs</code>-Datei bereitgestellt, die die bisherige Version ersetzt – das Sheet mit den eigenen Daten bleibt davon immer unberührt.</p>
+    <summary class="q">Wie hängen GitHub, die App und die Datenbank zusammen?</summary>
+    <p class="a">GitHub Pages (Ort für den Programmcode) → Supabase (Datenbank und Cloud-Funktionen). Bei einer Weiterentwicklung der App wird eine neue <code>index.html</code> bereitgestellt, die die bisherige Version ersetzt – die Datenbank mit den eigenen Daten bleibt davon immer unberührt.</p>
   </details>
 
   <details class="card">
     <summary class="q">Was passiert ohne Internetverbindung?</summary>
-    <p class="a">Es wird der zuletzt geladene Stand aus einem lokalen Zwischenspeicher im jeweiligen Browser angezeigt. Neue Buchungen können ohne Internetverbindung nicht gespeichert werden, da nichts ohne Verbindung ins Sheet geschrieben werden kann.</p>
-  </details>
-
-  <details class="card">
-    <summary class="q">Warum wurden Buchungsdaten früher manchmal einen Tag zu früh angezeigt?</summary>
-    <p class="a">Google Apps Script rechnete Datumswerte beim Verpacken in die Antwort automatisch in Weltzeit (UTC) um, wodurch ein deutsches Datum um einen Tag zurückrutschen konnte. Behoben, indem Apps Script Datumswerte seitdem als eindeutigen Text (z. B. "2026-09-16") statt als Zeitwert verschickt. Die eigentlichen Buchungen im Sheet waren davon nie betroffen, nur die Anzeige in der App nach dem Laden.</p>
+    <p class="a">Es wird der zuletzt geladene Stand aus einem lokalen Zwischenspeicher im jeweiligen Browser angezeigt. Neue Buchungen können ohne Internetverbindung nicht gespeichert werden, da nichts ohne Verbindung in die Datenbank geschrieben werden kann.</p>
   </details>
 </main>
 <script>
