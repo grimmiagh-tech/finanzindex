@@ -140,7 +140,7 @@
 
   <details class="card">
     <summary class="q">Wie hebe ich eine Sperre wieder auf, falls ich versehentlich das falsche Gerät gesperrt habe?</summary>
-    <p class="a">Absichtlich nicht aus der App heraus möglich. Im Supabase-Dashboard in der Tabelle "geraete" das Häkchen bei "gesperrt" für die entsprechende Zeile per Hand entfernen. Das ist bewusst so gebaut: Ein fremdes Gerät kennt zwar eventuell die Zugangsdaten, hat aber keinen Zugriff auf das Supabase-Konto selbst - die Sperre lässt sich also nur von dir selbst aufheben, nie vom gesperrten Gerät.</p>
+    <p class="a">Direkt in der Geräte-Liste antippen: "Entsperren" beim betroffenen Gerät klicken und den eigenen PIN dafür eingeben (ein anderer als der lokale Gerätesperre-PIN, separat hinterlegt). Der PIN wird ausschließlich serverseitig geprüft, nie im App-Code oder einer für "anon" lesbaren Tabelle gespeichert - nach 3 falschen Eingaben ist das Entsperren für 15 Minuten komplett blockiert. Wer nur die normalen Zugangsdaten der App kennt, kann diesen PIN also nicht erraten oder umgehen.</p>
   </details>
 
   <details class="card">
