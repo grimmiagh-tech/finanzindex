@@ -77,7 +77,12 @@
 
   <details class="card">
     <summary class="q">Wie viel muss manuell von ING auf Trade Republic überwiesen werden?</summary>
-    <p class="a">Tab "Fixkosten" → Karte "Gehaltsverteilung" zeigt den Betrag, der auf ING bleiben soll, und den Betrag, der auf Trade Republic überwiesen werden muss – berechnet aus den aktuell gültigen Fixkosten-Positionen.</p>
+    <p class="a">Tab "Fixkosten" → Karte "Gehaltsverteilung" zeigt den Betrag, der auf ING bleiben soll, und den Betrag, der auf Trade Republic überwiesen werden muss – berechnet aus den aktuell gültigen Fixkosten-Positionen. Am letzten Bankgeschäftstag des Monats zeigt die App dazu ein Popup mit genau diesem Betrag.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Wie läuft der Monatswechsel rund um Gehalt und Trade-Republic-Überweisung ab?</summary>
+    <p class="a">Am letzten Bankgeschäftstag des Monats (unter Berücksichtigung von Wochenenden und deutschen Feiertagen) zeigt die App ein Popup mit dem Betrag, der auf Trade Republic überwiesen werden soll. Die eigentliche Überweisung bei der Bank bleibt manuell. Sobald im Popup "Ja, erledigt" bestätigt wird, bucht die App automatisch die Besoldung und eine Sammelbuchung ING → Trade Republic in Höhe dieses Betrags ins Journal. Am 1. des Folgemonats läuft dann wie gewohnt die nächtliche Automatik: sie erkennt Besoldung und Sammelbuchung als bereits vorhanden und verteilt die übrigen Fixkosten – Miete, Nebenkosten, Abos und alle virtuellen Töpfe – auf diesen Tag.</p>
   </details>
 
   <details class="card">
@@ -89,7 +94,7 @@
 
   <details class="card">
     <summary class="q">Was passiert automatisch am 1. jeden Monats?</summary>
-    <p class="a">Zuerst wird der Ausgaberest-Ausgleich für den Vormonat gebucht, danach der Kontoauszug erstellt, dann die neuen Fixkosten und die Besoldung für den aktuellen Monat gebucht, danach eine Sicherung erstellt. Läuft serverseitig über eine Cloud-Funktion bei Supabase, unabhängig davon, ob die App-Seite geöffnet ist.</p>
+    <p class="a">Zuerst wird der Ausgaberest-Ausgleich für den Vormonat gebucht, danach der Kontoauszug erstellt, dann die neuen Fixkosten des aktuellen Monats gebucht (Miete, Nebenkosten, Abos, alle virtuellen Töpfe), danach eine Sicherung erstellt. Besoldung und die Trade-Republic-Sammelbuchung sind an diesem Punkt in der Regel schon vorhanden (siehe Frage zum Monatswechsel rund um Gehalt) und werden daher übersprungen. Läuft serverseitig über eine Cloud-Funktion bei Supabase, unabhängig davon, ob die App-Seite geöffnet ist.</p>
   </details>
 
   <details class="card">
