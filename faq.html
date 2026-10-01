@@ -90,6 +90,21 @@
     <p class="a">Dieser Wert entsteht rein rechnerisch aus den erfassten Buchungen. Eine Abweichung zeigt zuverlässig: eine Buchung fehlt oder ist falsch erfasst – nicht, dass die Berechnung selbst falsch wäre.</p>
   </details>
 
+  <details class="card">
+    <summary class="q">Wie buche ich die monatlichen Ausgaben (Überweisung zu Trade Republic) am letzten Bankwerktag?</summary>
+    <p class="a">Am letzten Bankgeschäftstag des Monats zeigt die App automatisch ein Popup mit dem zu überweisenden Betrag. Führe die Überweisung bei deiner Bank aus und bestätige danach im Popup mit "Ja, erledigt" – die App bucht dann automatisch sowohl die Besoldung als auch die Umbuchung ING → Trade Republic in dieser Höhe ins Journal. Eine manuelle Buchung ist dafür nicht nötig.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Woran erkennt die Automatik die Sammelbuchung zu Trade Republic?</summary>
+    <p class="a">Nicht am Titel, sondern an der Buchung selbst: Typ "Umbuchung", Quelle "ING", Ziel "Trade Republic", datiert auf den Monat des aktuellen Gehalts. Findet die Automatik eine solche Buchung, befüllt sie am 1. die Töpfe aus Trade Republic statt aus ING – so wächst "Trade Republic gesamt" nur um den tatsächlich überwiesenen Betrag, und ING wird nicht doppelt belastet.</p>
+  </details>
+
+  <details class="card">
+    <summary class="q">Was passiert am 1., wenn ich die Buchung am letzten Bankwerktag nicht gemacht habe?</summary>
+    <p class="a">Die Besoldung bucht die nächtliche Automatik am 1. trotzdem automatisch – das war schon immer so eingebaut. Die Sammelbuchung zu Trade Republic findet sie dann aber nicht, deshalb befüllt sie die Töpfe wie gewohnt aus ING. Die echte Überweisung bei der Bank musst du in diesem Fall weiterhin selbst machen und als normale Umbuchung ING → Trade Republic im Journal nachtragen – das ist dann eine eigenständige, korrekte Buchung und führt zu keiner Doppelzählung, weil die Töpfe zu diesem Zeitpunkt ja schon aus ING befüllt wurden.</p>
+  </details>
+
   <p class="cat">Automatisierung</p>
 
   <details class="card">
